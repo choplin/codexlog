@@ -122,7 +122,7 @@ func newListCmd() *cobra.Command {
 	flags.StringVar(&beforeStr, "before", "", "include sessions starting on/before the given RFC3339 timestamp")
 	flags.IntVar(&limit, "limit", 0, "limit number of sessions returned (0 means no limit)")
 	flags.StringVar(&formatFlag, "format", "table", "output format: table, plain, json, or jsonl")
-	flags.BoolVar(&noHeader, "no-header", false, "omit header row for tsv output")
+	flags.BoolVar(&noHeader, "no-header", false, "omit header row for plain output")
 	flags.IntVar(&summaryWidth, "summary-width", 160, "maximum characters included in the summary column")
 	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
 
@@ -164,8 +164,8 @@ func newViewCmd() *cobra.Command {
 			fmt.Fprintf(out, "CLI Version: %s\n", meta.CLIVersion)
 			fmt.Fprintf(out, "File: %s\n\n", path)
 
-			lowerRole := strings.ToLower(role)
-			return parser.IterateEvents(path, lowerRole, func(event model.Event) error {
+			roleFilter := strings.ToLower(role)
+			return parser.IterateEvents(path, roleFilter, func(event model.Event) error {
 				if event.Kind == "session_meta" {
 					return nil
 				}
@@ -183,6 +183,19 @@ func newViewCmd() *cobra.Command {
 	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
 
 	return cmd
+}
+
+type infoPayload struct {
+	SessionID       string `json:"session_id"`
+	JSONLPath       string `json:"jsonl_path"`
+	StartedAt       string `json:"started_at"`
+	CWD             string `json:"cwd"`
+	Originator      string `json:"originator"`
+	CLIVersion      string `json:"cli_version"`
+	MessageCount    int    `json:"message_count"`
+	DurationSeconds int    `json:"duration_seconds"`
+	DurationDisplay string `json:"duration_display"`
+	Summary         string `json:"summary"`
 }
 
 func newInfoCmd() *cobra.Command {
@@ -215,18 +228,9 @@ func newInfoCmd() *cobra.Command {
 				lastTimestamp = meta.StartedAt
 			}
 			duration := durationSeconds(meta.StartedAt, lastTimestamp)
+			summarySnippet := truncateSummary(summary, 160)
 
-			payload := struct {
-				SessionID       string `json:"session_id"`
-				JSONLPath       string `json:"jsonl_path"`
-				StartedAt       string `json:"started_at"`
-				CWD             string `json:"cwd"`
-				Originator      string `json:"originator"`
-				CLIVersion      string `json:"cli_version"`
-				MessageCount    int    `json:"message_count"`
-				DurationSeconds int    `json:"duration_seconds"`
-				Summary         string `json:"summary"`
-			}{
+			payload := infoPayload{
 				SessionID:       meta.ID,
 				JSONLPath:       path,
 				StartedAt:       meta.StartedAt.Format(time.RFC3339),
@@ -235,6 +239,7 @@ func newInfoCmd() *cobra.Command {
 				CLIVersion:      meta.CLIVersion,
 				MessageCount:    count,
 				DurationSeconds: duration,
+				DurationDisplay: formatDuration(duration),
 				Summary:         summary,
 			}
 
@@ -245,15 +250,7 @@ func newInfoCmd() *cobra.Command {
 				return enc.Encode(payload)
 			case "text":
 				out := cmd.OutOrStdout()
-				fmt.Fprintf(out, "Session ID: %s\n", payload.SessionID)
-				fmt.Fprintf(out, "JSONL Path: %s\n", payload.JSONLPath)
-				fmt.Fprintf(out, "Started At: %s\n", payload.StartedAt)
-				fmt.Fprintf(out, "CWD: %s\n", payload.CWD)
-				fmt.Fprintf(out, "Originator: %s\n", payload.Originator)
-				fmt.Fprintf(out, "CLI Version: %s\n", payload.CLIVersion)
-				fmt.Fprintf(out, "Message Count: %d\n", payload.MessageCount)
-				fmt.Fprintf(out, "Duration: %s\n", formatDuration(payload.DurationSeconds))
-				fmt.Fprintf(out, "Summary: %s\n", payload.Summary)
+				renderInfoText(out, payload, summarySnippet)
 				return nil
 			default:
 				return fmt.Errorf("unsupported format: %s", formatFlag)
@@ -262,7 +259,7 @@ func newInfoCmd() *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&formatFlag, "format", "json", "output format: json or text")
+	flags.StringVar(&formatFlag, "format", "text", "output format: text or json")
 	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
 
 	return cmd
@@ -325,4 +322,37 @@ func formatDuration(seconds int) string {
 	m := (seconds % 3600) / 60
 	s := seconds % 60
 	return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
+}
+
+func truncateSummary(text string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	collapsed := strings.Join(strings.Fields(strings.TrimSpace(text)), " ")
+	runes := []rune(collapsed)
+	if len(runes) <= max {
+		return string(runes)
+	}
+	if max == 1 {
+		return "…"
+	}
+	return string(runes[:max-1]) + "…"
+}
+
+func renderInfoText(out io.Writer, payload infoPayload, summarySnippet string) {
+	const labelWidth = 14
+	writeKV(out, labelWidth, "Session ID", payload.SessionID)
+	writeKV(out, labelWidth, "Started At", payload.StartedAt)
+	writeKV(out, labelWidth, "Duration", payload.DurationDisplay)
+	writeKV(out, labelWidth, "CWD", payload.CWD)
+	writeKV(out, labelWidth, "Originator", payload.Originator)
+	writeKV(out, labelWidth, "CLI Version", payload.CLIVersion)
+	writeKV(out, labelWidth, "Message Count", fmt.Sprintf("%d", payload.MessageCount))
+	writeKV(out, labelWidth, "JSONL Path", payload.JSONLPath)
+	writeKV(out, labelWidth, "Summary", summarySnippet)
+
+}
+
+func writeKV(out io.Writer, width int, label string, value string) {
+	fmt.Fprintf(out, "%-*s: %s\n", width, label, value)
 }
