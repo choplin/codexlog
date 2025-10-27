@@ -134,6 +134,7 @@ func newViewCmd() *cobra.Command {
 		role        string
 		raw         bool
 		wrap        int
+		maxEvents   int
 		sessionsDir string
 	)
 
@@ -165,14 +166,28 @@ func newViewCmd() *cobra.Command {
 			fmt.Fprintf(out, "File: %s\n\n", path)
 
 			roleFilter := strings.ToLower(role)
-			return parser.IterateEvents(path, roleFilter, func(event model.Event) error {
+			var events []model.Event
+			err = parser.IterateEvents(path, roleFilter, func(event model.Event) error {
 				if event.Kind == "session_meta" {
 					return nil
 				}
-				line := format.RenderEvent(event, wrap)
-				_, err := fmt.Fprintln(out, line)
-				return err
+				events = append(events, event)
+				return nil
 			})
+			if err != nil {
+				return err
+			}
+
+			events = limitEvents(events, maxEvents)
+
+			for idx, event := range events {
+				printEvent(out, event, idx+1, wrap)
+				if idx < len(events)-1 {
+					fmt.Fprintln(out)
+				}
+			}
+
+			return nil
 		},
 	}
 
@@ -180,6 +195,7 @@ func newViewCmd() *cobra.Command {
 	flags.StringVar(&role, "role", "", "filter messages by role (user, assistant, tool)")
 	flags.BoolVar(&raw, "raw", false, "output raw JSONL without formatting")
 	flags.IntVar(&wrap, "wrap", 0, "wrap message body at the given column width")
+	flags.IntVar(&maxEvents, "max", 0, "show only the most recent N events (0 means no limit)")
 	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
 
 	return cmd
@@ -372,4 +388,35 @@ func clipSummary(text string, max int) string {
 		return "…"
 	}
 	return string(runes[:max-1]) + "…"
+}
+
+func limitEvents(events []model.Event, max int) []model.Event {
+	if max <= 0 || len(events) <= max {
+		return events
+	}
+	return events[len(events)-max:]
+}
+
+func printEvent(out io.Writer, event model.Event, index int, wrap int) {
+	roleLabel := event.Role
+	if roleLabel == "" {
+		roleLabel = event.Kind
+	}
+	if roleLabel == "" {
+		roleLabel = "event"
+	}
+	ts := "-"
+	if !event.Timestamp.IsZero() {
+		ts = event.Timestamp.Format(time.RFC3339)
+	}
+	fmt.Fprintf(out, "[#%03d][%s][%s]\n", index, strings.ToLower(roleLabel), ts)
+
+	lines := format.RenderEventLines(event, wrap)
+	if len(lines) == 0 {
+		fmt.Fprintln(out, "  (no content)")
+		return
+	}
+	for _, line := range lines {
+		fmt.Fprintf(out, "  %s\n", line)
+	}
 }

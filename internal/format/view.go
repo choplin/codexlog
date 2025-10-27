@@ -10,20 +10,33 @@ import (
 	"codexlog/internal/model"
 )
 
-// RenderEvent converts a session event into a printable string.
-func RenderEvent(event model.Event, wrapWidth int) string {
+// RenderEventLines returns the formatted body lines for a session event.
+func RenderEventLines(event model.Event, wrapWidth int) []string {
 	switch event.Kind {
 	case "session_meta":
-		return fmt.Sprintf("Session %s (%s)", contentValue(event.Content, "id"), event.Timestamp.Format(time.RFC3339))
-	case "response_item":
+		return []string{fmt.Sprintf("Session %s (%s)", contentValue(event.Content, "id"), event.Timestamp.Format(time.RFC3339))}
+	default:
 		body := renderBlocks(event.Content, wrapWidth)
+		if body == "" {
+			return nil
+		}
+		return strings.Split(body, "\n")
+	}
+}
+
+// RenderEvent converts a session event into a printable string (legacy helper).
+func RenderEvent(event model.Event, wrapWidth int) string {
+	lines := RenderEventLines(event, wrapWidth)
+	switch event.Kind {
+	case "session_meta":
+		return strings.Join(lines, "\n")
+	case "response_item":
 		label := event.Role
 		if label == "" {
 			label = event.MessageType
 		}
-		return fmt.Sprintf("[%s][%s]\n%s", event.Timestamp.Format(time.RFC3339), label, body)
+		return fmt.Sprintf("[%s][%s]\n%s", event.Timestamp.Format(time.RFC3339), label, strings.Join(lines, "\n"))
 	default:
-		body := renderBlocks(event.Content, wrapWidth)
 		label := event.Kind
 		if label == "" {
 			label = event.MessageType
@@ -31,7 +44,7 @@ func RenderEvent(event model.Event, wrapWidth int) string {
 		if label == "" {
 			label = "event"
 		}
-		return fmt.Sprintf("[%s][%s]\n%s", event.Timestamp.Format(time.RFC3339), label, body)
+		return fmt.Sprintf("[%s][%s]\n%s", event.Timestamp.Format(time.RFC3339), label, strings.Join(lines, "\n"))
 	}
 }
 
