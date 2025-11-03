@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,7 +17,9 @@ import (
 	"codexlog/internal/parser"
 	"codexlog/internal/store"
 
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var rootCmd = &cobra.Command{
@@ -131,11 +135,16 @@ func newListCmd() *cobra.Command {
 
 func newViewCmd() *cobra.Command {
 	var (
-		role        string
-		raw         bool
-		wrap        int
-		maxEvents   int
-		sessionsDir string
+		entryTypeArg   string
+		payloadTypeArg string
+		payloadRoleArg string
+		raw            bool
+		wrap           int
+		maxEvents      int
+		sessionsDir    string
+		formatFlag     string
+		forceColor     bool
+		forceNoColor   bool
 	)
 
 	cmd := &cobra.Command{
@@ -149,29 +158,33 @@ func newViewCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
+			if forceColor && forceNoColor {
+				return errors.New("--color and --no-color cannot be used together")
+			}
+
 			if raw {
 				return copyFile(out, path)
 			}
 
-			meta, err := parser.ReadSessionMeta(path)
+			filters, err := buildViewFilters(entryTypeArg, payloadTypeArg, payloadRoleArg)
 			if err != nil {
 				return err
 			}
 
-			fmt.Fprintf(out, "Session ID: %s\n", meta.ID)
-			fmt.Fprintf(out, "Started At: %s\n", meta.StartedAt.Format(time.RFC3339))
-			fmt.Fprintf(out, "CWD: %s\n", meta.CWD)
-			fmt.Fprintf(out, "Originator: %s\n", meta.Originator)
-			fmt.Fprintf(out, "CLI Version: %s\n", meta.CLIVersion)
-			fmt.Fprintf(out, "File: %s\n\n", path)
+			formatMode := strings.ToLower(formatFlag)
 
-			roleFilter := strings.ToLower(role)
+			if _, err := parser.ReadSessionMeta(path); err != nil {
+				return err
+			}
+
 			var events []model.Event
-			err = parser.IterateEvents(path, roleFilter, func(event model.Event) error {
-				if event.Kind == "session_meta" {
+			err = parser.IterateEvents(path, func(event model.Event) error {
+				if event.Kind == model.EntryTypeSessionMeta {
 					return nil
 				}
-				events = append(events, event)
+				if eventMatchesFilters(event, filters) {
+					events = append(events, event)
+				}
 				return nil
 			})
 			if err != nil {
@@ -180,23 +193,45 @@ func newViewCmd() *cobra.Command {
 
 			events = limitEvents(events, maxEvents)
 
-			for idx, event := range events {
-				printEvent(out, event, idx+1, wrap)
-				if idx < len(events)-1 {
-					fmt.Fprintln(out)
+			switch formatMode {
+			case "", "text":
+				useColor := resolveColorChoice(out, forceColor, forceNoColor)
+				for idx, event := range events {
+					printEvent(out, event, idx+1, wrap, useColor)
+					if idx < len(events)-1 {
+						fmt.Fprintln(out)
+					}
 				}
+				return nil
+			case "chat":
+				colorEnabled := resolveColorChoice(out, forceColor, forceNoColor)
+				outFile, outIsFile := out.(*os.File)
+				width := determineWidth(outFile, wrap)
+				lines := renderChatTranscript(events, width, colorEnabled)
+				if len(lines) == 0 {
+					return nil
+				}
+				if outIsFile && isatty.IsTerminal(outFile.Fd()) {
+					return pipeThroughPager(lines, colorEnabled)
+				}
+				return writeLines(out, lines)
+			default:
+				return fmt.Errorf("unsupported format: %s", formatFlag)
 			}
-
-			return nil
 		},
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&role, "role", "", "filter messages by role (user, assistant, tool)")
+	flags.StringVarP(&entryTypeArg, "entry-type", "E", "", "comma-separated entry types to include (default: all)")
+	flags.StringVarP(&payloadTypeArg, "payload-type", "T", "", "comma-separated payload types to include (default: all)")
+	flags.StringVarP(&payloadRoleArg, "payload-role", "R", "", "comma-separated payload roles to include (default: user,assistant; use 'all' for every role)")
 	flags.BoolVar(&raw, "raw", false, "output raw JSONL without formatting")
 	flags.IntVar(&wrap, "wrap", 0, "wrap message body at the given column width")
 	flags.IntVar(&maxEvents, "max", 0, "show only the most recent N events (0 means no limit)")
 	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
+	flags.StringVar(&formatFlag, "format", "text", "output format: text or chat")
+	flags.BoolVar(&forceColor, "color", false, "force-enable ANSI colors even when stdout is not a TTY")
+	flags.BoolVar(&forceNoColor, "no-color", false, "disable ANSI colors regardless of terminal detection")
 
 	return cmd
 }
@@ -397,26 +432,338 @@ func limitEvents(events []model.Event, max int) []model.Event {
 	return events[len(events)-max:]
 }
 
-func printEvent(out io.Writer, event model.Event, index int, wrap int) {
-	roleLabel := event.Role
+type viewFilters struct {
+	entryTypes   map[model.EntryType]struct{}
+	payloadTypes map[model.PayloadType]struct{}
+	payloadRoles map[model.PayloadRole]struct{}
+}
+
+func buildViewFilters(entryArg, payloadTypeArg, payloadRoleArg string) (viewFilters, error) {
+	var filters viewFilters
+
+	entryFilter, entryProvided, err := parseEntryTypeArg(entryArg)
+	if err != nil {
+		return filters, err
+	}
+	payloadTypeFilter, typeProvided, err := parsePayloadTypeArg(payloadTypeArg)
+	if err != nil {
+		return filters, err
+	}
+	payloadRoleFilter, provided, err := parsePayloadRoleArg(payloadRoleArg)
+	if err != nil {
+		return filters, err
+	}
+
+	if entryProvided {
+		filters.entryTypes = entryFilter
+	} else {
+		filters.entryTypes = map[model.EntryType]struct{}{
+			model.EntryTypeResponseItem: {},
+		}
+	}
+	if typeProvided {
+		filters.payloadTypes = payloadTypeFilter
+	} else {
+		filters.payloadTypes = map[model.PayloadType]struct{}{
+			model.PayloadTypeMessage: {},
+		}
+	}
+	if provided {
+		filters.payloadRoles = payloadRoleFilter
+	} else {
+		filters.payloadRoles = map[model.PayloadRole]struct{}{
+			model.PayloadRoleUser:      {},
+			model.PayloadRoleAssistant: {},
+		}
+	}
+
+	return filters, nil
+}
+
+func parseEntryTypeArg(arg string) (map[model.EntryType]struct{}, bool, error) {
+	values := parseCSV(arg)
+	if len(values) == 0 {
+		return nil, false, nil
+	}
+	if len(values) == 1 && values[0] == "all" {
+		return nil, true, nil
+	}
+
+	lookup := map[string]model.EntryType{
+		"session_meta":  model.EntryTypeSessionMeta,
+		"response_item": model.EntryTypeResponseItem,
+	}
+
+	set := make(map[model.EntryType]struct{}, len(values))
+	for _, token := range values {
+		entryType, ok := lookup[token]
+		if !ok {
+			return nil, true, fmt.Errorf("unknown entry type %q", token)
+		}
+		set[entryType] = struct{}{}
+	}
+	return set, true, nil
+}
+
+func parsePayloadTypeArg(arg string) (map[model.PayloadType]struct{}, bool, error) {
+	values := parseCSV(arg)
+	if len(values) == 0 {
+		return nil, false, nil
+	}
+	if len(values) == 1 && values[0] == "all" {
+		return nil, true, nil
+	}
+
+	lookup := map[string]model.PayloadType{
+		"message":      model.PayloadTypeMessage,
+		"event_msg":    model.PayloadTypeEventMsg,
+		"turn_context": model.PayloadTypeTurnContext,
+	}
+
+	set := make(map[model.PayloadType]struct{}, len(values))
+	for _, token := range values {
+		payloadType, ok := lookup[token]
+		if !ok {
+			return nil, true, fmt.Errorf("unknown payload type %q", token)
+		}
+		set[payloadType] = struct{}{}
+	}
+	return set, true, nil
+}
+
+func parsePayloadRoleArg(arg string) (map[model.PayloadRole]struct{}, bool, error) {
+	values := parseCSV(arg)
+	if len(values) == 0 {
+		return nil, false, nil
+	}
+	if len(values) == 1 && values[0] == "all" {
+		return nil, true, nil
+	}
+
+	lookup := map[string]model.PayloadRole{
+		"user":      model.PayloadRoleUser,
+		"assistant": model.PayloadRoleAssistant,
+		"tool":      model.PayloadRoleTool,
+		"system":    model.PayloadRoleSystem,
+	}
+
+	set := make(map[model.PayloadRole]struct{}, len(values))
+	for _, token := range values {
+		role, ok := lookup[token]
+		if !ok {
+			return nil, true, fmt.Errorf("unknown payload role %q", token)
+		}
+		set[role] = struct{}{}
+	}
+	return set, true, nil
+}
+
+func parseCSV(arg string) []string {
+	if strings.TrimSpace(arg) == "" {
+		return nil
+	}
+	parts := strings.Split(arg, ",")
+	output := make([]string, 0, len(parts))
+	for _, part := range parts {
+		token := strings.TrimSpace(strings.ToLower(part))
+		if token != "" {
+			output = append(output, token)
+		}
+	}
+	return output
+}
+
+func eventMatchesFilters(event model.Event, filters viewFilters) bool {
+	if filters.entryTypes != nil {
+		if _, ok := filters.entryTypes[event.Kind]; !ok {
+			return false
+		}
+	}
+
+	if event.Kind == model.EntryTypeResponseItem {
+		if filters.payloadTypes != nil {
+			if _, ok := filters.payloadTypes[event.MessageType]; !ok {
+				return false
+			}
+		}
+		if filters.payloadRoles != nil {
+			if _, ok := filters.payloadRoles[event.Role]; !ok {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func determineWidth(out *os.File, wrap int) int {
+	if wrap > 0 {
+		return wrap
+	}
+	if out != nil {
+		if w, _, err := term.GetSize(int(out.Fd())); err == nil && w > 0 {
+			return w
+		}
+	}
+	if colsStr := os.Getenv("COLUMNS"); colsStr != "" {
+		if v, err := strconv.Atoi(colsStr); err == nil && v > 0 {
+			return v
+		}
+	}
+	return 80
+}
+
+func pipeThroughPager(lines []string, colorEnabled bool) error {
+	text := strings.Join(lines, "\n")
+	if !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+
+	pagerCmd := os.Getenv("PAGER")
+	var cmd *exec.Cmd
+	if pagerCmd == "" {
+		args := []string{"less"}
+		if colorEnabled {
+			args = append(args, "-R")
+		}
+		cmd = exec.Command(args[0], args[1:]...) // #nosec G204
+	} else {
+		cmd = exec.Command("sh", "-c", pagerCmd) // #nosec G204
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("create pager pipe: %w", err)
+	}
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, text) //nolint:errcheck
+	}()
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("run pager: %w", err)
+	}
+
+	return nil
+}
+
+func writeLines(out io.Writer, lines []string) error {
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(out, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printEvent(out io.Writer, event model.Event, index int, wrap int, useColor bool) {
+	roleLabel := string(event.Role)
 	if roleLabel == "" {
-		roleLabel = event.Kind
+		roleLabel = string(event.Kind)
 	}
 	if roleLabel == "" {
 		roleLabel = "event"
 	}
+	roleLabel = strings.ToLower(roleLabel)
+
 	ts := "-"
 	if !event.Timestamp.IsZero() {
 		ts = event.Timestamp.Format(time.RFC3339)
 	}
-	fmt.Fprintf(out, "[#%03d][%s][%s]\n", index, strings.ToLower(roleLabel), ts)
+	headerPlain := fmt.Sprintf("[#%03d] %s | %s", index, roleLabel, ts)
+
+	indexText := fmt.Sprintf("#%03d", index)
+	roleText := roleLabel
+	tsText := ts
+	separator := "|"
+
+	if useColor {
+		indexText = colorize(true, ansiBoldWhite, indexText)
+		roleText = colorize(true, roleColor(roleLabel), roleText)
+		tsText = colorize(true, ansiTimestamp, tsText)
+		separator = colorize(true, ansiSeparator, "|")
+	}
+
+	header := fmt.Sprintf("[%s] %s %s %s", indexText, roleText, separator, tsText)
+	fmt.Fprintln(out, header)
+	fmt.Fprintln(out, strings.Repeat("-", len(headerPlain)))
 
 	lines := format.RenderEventLines(event, wrap)
 	if len(lines) == 0 {
-		fmt.Fprintln(out, "  (no content)")
+		prefix := "|"
+		if useColor {
+			prefix = colorize(true, ansiSeparator, "|")
+		}
+		fmt.Fprintf(out, "%s %s\n", prefix, "(no content)")
 		return
 	}
-	for _, line := range lines {
-		fmt.Fprintf(out, "  %s\n", line)
+	linePrefix := "| "
+	emptyPrefix := "|"
+	if useColor {
+		separatorColor := colorize(true, ansiSeparator, "|")
+		linePrefix = separatorColor + " "
+		emptyPrefix = separatorColor
 	}
+	for _, line := range lines {
+		if line == "" {
+			fmt.Fprintln(out, emptyPrefix)
+			continue
+		}
+		fmt.Fprintf(out, "%s%s\n", linePrefix, line)
+	}
+}
+
+const (
+	ansiReset     = "\x1b[0m"
+	ansiBoldWhite = "\x1b[1;97m"
+	ansiTimestamp = "\x1b[38;5;245m"
+	ansiSeparator = "\x1b[38;5;240m"
+	ansiAssistant = "\x1b[38;5;44m"
+	ansiUser      = "\x1b[38;5;220m"
+	ansiTool      = "\x1b[38;5;207m"
+)
+
+func colorize(enabled bool, code string, text string) string {
+	if !enabled {
+		return text
+	}
+	return code + text + ansiReset
+}
+
+func roleColor(role string) string {
+	switch model.PayloadRole(role) {
+	case model.PayloadRoleAssistant:
+		return ansiAssistant
+	case model.PayloadRoleUser:
+		return ansiUser
+	case model.PayloadRoleTool, model.PayloadRoleSystem:
+		return ansiTool
+	default:
+		return ansiSeparator
+	}
+}
+
+func resolveColorChoice(out io.Writer, forceColor, forceNoColor bool) bool {
+	if forceColor {
+		return true
+	}
+	if forceNoColor {
+		return false
+	}
+	return shouldUseColorAuto(out)
+}
+
+func shouldUseColorAuto(out io.Writer) bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	file, ok := out.(*os.File)
+	if !ok {
+		return false
+	}
+	fd := file.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 }

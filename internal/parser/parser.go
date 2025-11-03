@@ -64,9 +64,9 @@ func FirstUserSummary(path string) (summary string, messageCount int, lastTimest
 			lastTimestamp = event.Timestamp
 		}
 
-		if event.Kind == "response_item" {
+		if event.Kind == model.EntryTypeResponseItem {
 			messageCount++
-			if summary == "" && event.Role == "user" {
+			if summary == "" && event.Role == model.PayloadRoleUser {
 				summary = buildSummaryText(event.Content)
 			}
 		}
@@ -80,9 +80,8 @@ func FirstUserSummary(path string) (summary string, messageCount int, lastTimest
 }
 
 // IterateEvents walks through the session JSONL file and calls fn for each
-// decoded event. If roleFilter is non-empty, only events with matching role are
-// forwarded (session_meta is always forwarded).
-func IterateEvents(path string, roleFilter string, fn func(model.Event) error) error {
+// decoded event.
+func IterateEvents(path string, fn func(model.Event) error) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open session file: %w", err)
@@ -95,10 +94,6 @@ func IterateEvents(path string, roleFilter string, fn func(model.Event) error) e
 		event, err := parseEvent(recBytes)
 		if err != nil {
 			return err
-		}
-
-		if roleFilter != "" && event.Kind == "response_item" && event.Role != roleFilter {
-			continue
 		}
 
 		if err := fn(event); err != nil {
@@ -184,7 +179,7 @@ func tryParseMeta(raw []byte) (*model.SessionMeta, bool, error) {
 		return nil, false, err
 	}
 
-	if event.Kind != "session_meta" {
+	if event.Kind != model.EntryTypeSessionMeta {
 		legacy := legacyMeta{}
 		if err := json.Unmarshal(raw, &legacy); err == nil && legacy.ID != "" {
 			tsValue := legacy.Timestamp
@@ -254,29 +249,30 @@ func parseEvent(raw []byte) (model.Event, error) {
 		}
 	}
 
+	entryType := model.EntryType(rec.Type)
 	event := model.Event{
 		Timestamp: ts,
-		Kind:      rec.Type,
+		Kind:      entryType,
 		Raw:       string(raw),
 	}
 
-	switch rec.Type {
-	case "session_meta":
+	switch entryType {
+	case model.EntryTypeSessionMeta:
 		var payload sessionMetaPayload
 		if err := json.Unmarshal(rec.Payload, &payload); err != nil {
 			return model.Event{}, fmt.Errorf("unmarshal session_meta payload: %w", err)
 		}
-		event.MessageType = payload.Originator
+		event.MessageType = model.PayloadType(payload.Originator)
 		event.Content = []model.ContentBlock{
 			{Type: "id", Text: payload.ID},
 		}
-	case "response_item":
+	case model.EntryTypeResponseItem:
 		var payload responsePayload
 		if err := json.Unmarshal(rec.Payload, &payload); err != nil {
 			return model.Event{}, fmt.Errorf("unmarshal response payload: %w", err)
 		}
-		event.Role = payload.Role
-		event.MessageType = payload.Type
+		event.Role = model.PayloadRole(payload.Role)
+		event.MessageType = model.PayloadType(payload.Type)
 		event.Content = decodeContentBlocks(payload.Content)
 	default:
 		// Pass through unknown payloads as raw JSON.
