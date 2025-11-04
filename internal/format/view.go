@@ -13,7 +13,7 @@ import (
 // RenderEventLines returns the formatted body lines for a session event.
 func RenderEventLines(event model.Event, wrapWidth int) []string {
 	switch event.Kind {
-	case "session_meta":
+	case model.EntryTypeSessionMeta:
 		return []string{fmt.Sprintf("Session %s (%s)", contentValue(event.Content, "id"), event.Timestamp.Format(time.RFC3339))}
 	default:
 		body := renderBlocks(event.Content, wrapWidth)
@@ -28,18 +28,18 @@ func RenderEventLines(event model.Event, wrapWidth int) []string {
 func RenderEvent(event model.Event, wrapWidth int) string {
 	lines := RenderEventLines(event, wrapWidth)
 	switch event.Kind {
-	case "session_meta":
+	case model.EntryTypeSessionMeta:
 		return strings.Join(lines, "\n")
-	case "response_item":
-		label := event.Role
+	case model.EntryTypeResponseItem:
+		label := string(event.Role)
 		if label == "" {
-			label = event.MessageType
+			label = string(event.MessageType)
 		}
 		return fmt.Sprintf("[%s][%s]\n%s", event.Timestamp.Format(time.RFC3339), label, strings.Join(lines, "\n"))
 	default:
-		label := event.Kind
+		label := string(event.Kind)
 		if label == "" {
-			label = event.MessageType
+			label = string(event.MessageType)
 		}
 		if label == "" {
 			label = "event"

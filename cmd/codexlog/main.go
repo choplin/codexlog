@@ -203,6 +203,13 @@ func newViewCmd() *cobra.Command {
 					}
 				}
 				return nil
+			case "raw":
+				for _, event := range events {
+					if _, err := fmt.Fprintln(out, event.Raw); err != nil {
+						return err
+					}
+				}
+				return nil
 			case "chat":
 				colorEnabled := resolveColorChoice(out, forceColor, forceNoColor)
 				outFile, outIsFile := out.(*os.File)
@@ -229,7 +236,7 @@ func newViewCmd() *cobra.Command {
 	flags.IntVar(&wrap, "wrap", 0, "wrap message body at the given column width")
 	flags.IntVar(&maxEvents, "max", 0, "show only the most recent N events (0 means no limit)")
 	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
-	flags.StringVar(&formatFlag, "format", "text", "output format: text or chat")
+	flags.StringVar(&formatFlag, "format", "text", "output format: text, chat, or raw")
 	flags.BoolVar(&forceColor, "color", false, "force-enable ANSI colors even when stdout is not a TTY")
 	flags.BoolVar(&forceNoColor, "no-color", false, "disable ANSI colors regardless of terminal detection")
 

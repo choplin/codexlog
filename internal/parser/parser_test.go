@@ -73,9 +73,9 @@ func TestFirstUserSummary(t *testing.T) {
 func TestIterateEvents_Filtered(t *testing.T) {
 	path := fixturePath("new", "sample.jsonl")
 
-	var events []string
-	err := IterateEvents(path, "assistant", func(evt model.Event) error {
-		if evt.Kind == "response_item" {
+	var events []model.PayloadRole
+	err := IterateEvents(path, func(evt model.Event) error {
+		if evt.Kind == model.EntryTypeResponseItem {
 			events = append(events, evt.Role)
 		}
 		return nil
@@ -84,10 +84,7 @@ func TestIterateEvents_Filtered(t *testing.T) {
 		t.Fatalf("IterateEvents returned error: %v", err)
 	}
 
-	if len(events) != 1 {
-		t.Fatalf("expected 1 assistant event, got %d", len(events))
-	}
-	if events[0] != "assistant" {
-		t.Fatalf("unexpected role: %s", events[0])
+	if len(events) != 2 {
+		t.Fatalf("expected 2 response events, got %d", len(events))
 	}
 }
