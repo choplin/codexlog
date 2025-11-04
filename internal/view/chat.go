@@ -120,13 +120,23 @@ func roleLabel(event model.Event) string {
 }
 
 func alignmentForRole(role string) string {
+	// Check for system/metadata entries first (by string comparison)
+	switch role {
+	case "session_meta", "event_msg", "turn_context":
+		return "left"
+	}
+
+	// Then check for role-based alignment
 	switch model.PayloadRole(role) {
 	case model.PayloadRoleAssistant:
 		return "left"
 	case model.PayloadRoleTool, model.PayloadRoleSystem:
 		return "center"
-	default:
+	case model.PayloadRoleUser:
 		return "right"
+	default:
+		// Unknown types default to left
+		return "left"
 	}
 }
 
