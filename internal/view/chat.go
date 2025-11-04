@@ -1,4 +1,4 @@
-package main
+package view
 
 import (
 	"fmt"
@@ -14,8 +14,6 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-// renderChatTranscript produces chat-style lines for the given events using the
-// specified width (characters) and optional ANSI coloring.
 func renderChatTranscript(events []model.Event, width int, useColor bool) []string {
 	if width <= 0 {
 		width = 80
@@ -65,7 +63,6 @@ func renderChatBubble(event model.Event, totalWidth int, padding int, useColor b
 			colorize(true, roleColor(role), headerLabel),
 			colorize(true, ansiTimestamp, headerTime),
 		)
-		// replace only the leading occurrence to preserve additional text if any
 		content[0] = strings.Replace(content[0], headerText, colored, 1)
 	}
 
