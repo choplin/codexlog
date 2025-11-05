@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/choplin/codexlog/actions/workflows/ci.yml/badge.svg)](https://github.com/choplin/codexlog/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Version](https://img.shields.io/badge/Go-1.23+-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org)
 
 Browse, search, and analyze Codex CLI sessions.
 
