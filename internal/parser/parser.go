@@ -262,7 +262,7 @@ func parseEvent(raw []byte) (model.Event, error) {
 		if err := json.Unmarshal(rec.Payload, &payload); err != nil {
 			return model.Event{}, fmt.Errorf("unmarshal session_meta payload: %w", err)
 		}
-		event.MessageType = model.PayloadType(payload.Originator)
+		event.PayloadType = payload.Originator
 		event.Content = []model.ContentBlock{
 			{Type: "id", Text: payload.ID},
 		}
@@ -272,8 +272,15 @@ func parseEvent(raw []byte) (model.Event, error) {
 			return model.Event{}, fmt.Errorf("unmarshal response payload: %w", err)
 		}
 		event.Role = model.PayloadRole(payload.Role)
-		event.MessageType = model.PayloadType(payload.Type)
+		event.PayloadType = payload.Type
 		event.Content = decodeContentBlocks(payload.Content)
+	case model.EntryTypeEventMsg, model.EntryTypeTurnContext:
+		var payload responsePayload
+		if err := json.Unmarshal(rec.Payload, &payload); err != nil {
+			return model.Event{}, fmt.Errorf("unmarshal %s payload: %w", entryType, err)
+		}
+		event.PayloadType = payload.Type
+		event.Content = decodeContentBlocks(rec.Payload)
 	default:
 		// Pass through unknown payloads as raw JSON.
 		event.Content = decodeContentBlocks(rec.Payload)

@@ -1,0 +1,5 @@
+{"timestamp":"2025-11-05T09:00:00Z","type":"session_meta","payload":{"id":"test-simple-session","timestamp":"2025-11-05T09:00:00Z","cwd":"/Users/test/simple","originator":"codex_cli","cli_version":"1.0.0"}}
+{"timestamp":"2025-11-05T09:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"text","text":"Hello, can you help me?"}]}}
+{"timestamp":"2025-11-05T09:00:02Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"text","text":"Of course! How can I help you today?"}]}}
+{"timestamp":"2025-11-05T09:00:03Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"text","text":"I need to write a function"}]}}
+{"timestamp":"2025-11-05T09:00:04Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"text","text":"I'd be happy to help you write a function. What should it do?"}]}}

@@ -113,8 +113,8 @@ func roleLabel(event model.Event) string {
 	if event.Kind != "" {
 		return string(event.Kind)
 	}
-	if event.MessageType != "" {
-		return string(event.MessageType)
+	if event.PayloadType != "" {
+		return event.PayloadType
 	}
 	return "event"
 }

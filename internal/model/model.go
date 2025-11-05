@@ -8,15 +8,31 @@ type EntryType string
 const (
 	EntryTypeSessionMeta  EntryType = "session_meta"
 	EntryTypeResponseItem EntryType = "response_item"
+	EntryTypeEventMsg     EntryType = "event_msg"
+	EntryTypeTurnContext  EntryType = "turn_context"
 )
 
-// PayloadType captures the "payload.type" values observed in Codex response items.
-type PayloadType string
+// ResponseItemType captures the "payload.type" values in response_item entries.
+type ResponseItemType string
 
 const (
-	PayloadTypeMessage     PayloadType = "message"
-	PayloadTypeEventMsg    PayloadType = "event_msg"
-	PayloadTypeTurnContext PayloadType = "turn_context"
+	ResponseItemTypeMessage              ResponseItemType = "message"
+	ResponseItemTypeReasoning            ResponseItemType = "reasoning"
+	ResponseItemTypeFunctionCall         ResponseItemType = "function_call"
+	ResponseItemTypeFunctionCallOutput   ResponseItemType = "function_call_output"
+	ResponseItemTypeCustomToolCall       ResponseItemType = "custom_tool_call"
+	ResponseItemTypeCustomToolCallOutput ResponseItemType = "custom_tool_call_output"
+)
+
+// EventMsgType captures the "payload.type" values in event_msg entries.
+type EventMsgType string
+
+const (
+	EventMsgTypeTokenCount     EventMsgType = "token_count"
+	EventMsgTypeAgentReasoning EventMsgType = "agent_reasoning"
+	EventMsgTypeUserMessage    EventMsgType = "user_message"
+	EventMsgTypeAgentMessage   EventMsgType = "agent_message"
+	EventMsgTypeTurnAborted    EventMsgType = "turn_aborted"
 )
 
 // PayloadRole captures the "payload.role" values observed in Codex response items.
@@ -57,7 +73,7 @@ type Event struct {
 	Timestamp   time.Time
 	Kind        EntryType
 	Role        PayloadRole
-	MessageType PayloadType
+	PayloadType string // response_item: ResponseItemType, event_msg: EventMsgType
 	Content     []ContentBlock
 	Raw         string
 }

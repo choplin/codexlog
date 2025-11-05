@@ -19,19 +19,20 @@ import (
 
 // Options defines the configurable parameters for rendering a view.
 type Options struct {
-	Path            string
-	Format          string
-	Wrap            int
-	MaxEvents       int
-	EntryTypeArg    string
-	PayloadTypeArg  string
-	PayloadRoleArg  string
-	AllFilter       bool
-	ForceColor      bool
-	ForceNoColor    bool
-	RawFile         bool
-	Out             io.Writer
-	OutFile         *os.File
+	Path             string
+	Format           string
+	Wrap             int
+	MaxEvents        int
+	EntryTypeArg     string
+	ResponseTypeArg  string
+	EventMsgTypeArg  string
+	PayloadRoleArg   string
+	AllFilter        bool
+	ForceColor       bool
+	ForceNoColor     bool
+	RawFile          bool
+	Out              io.Writer
+	OutFile          *os.File
 }
 
 // Run renders a session log according to the provided options.
@@ -44,7 +45,7 @@ func Run(opts Options) error {
 		return copyFile(opts.Out, opts.Path)
 	}
 
-	filters, err := buildViewFilters(opts.AllFilter, opts.EntryTypeArg, opts.PayloadTypeArg, opts.PayloadRoleArg)
+	filters, err := buildViewFilters(opts.AllFilter, opts.EntryTypeArg, opts.ResponseTypeArg, opts.EventMsgTypeArg, opts.PayloadRoleArg)
 	if err != nil {
 		return err
 	}
@@ -163,20 +164,22 @@ func Run(opts Options) error {
 }
 
 type viewFilters struct {
-	entryTypes   map[model.EntryType]struct{}
-	payloadTypes map[model.PayloadType]struct{}
-	payloadRoles map[model.PayloadRole]struct{}
+	entryTypes        map[model.EntryType]struct{}
+	responseItemTypes map[model.ResponseItemType]struct{}
+	eventMsgTypes     map[model.EventMsgType]struct{}
+	payloadRoles      map[model.PayloadRole]struct{}
 }
 
-func buildViewFilters(allFilter bool, entryArg, payloadTypeArg, payloadRoleArg string) (viewFilters, error) {
+func buildViewFilters(allFilter bool, entryArg, responseTypeArg, eventMsgTypeArg, payloadRoleArg string) (viewFilters, error) {
 	var filters viewFilters
 
 	// If --all is specified, disable all filters
 	if allFilter {
 		return viewFilters{
-			entryTypes:   nil,
-			payloadTypes: nil,
-			payloadRoles: nil,
+			entryTypes:        nil,
+			responseItemTypes: nil,
+			eventMsgTypes:     nil,
+			payloadRoles:      nil,
 		}, nil
 	}
 
@@ -184,11 +187,15 @@ func buildViewFilters(allFilter bool, entryArg, payloadTypeArg, payloadRoleArg s
 	if err != nil {
 		return filters, err
 	}
-	payloadTypeFilter, typeProvided, err := parsePayloadTypeArg(payloadTypeArg)
+	responseTypeFilter, responseTypeProvided, err := parseResponseTypeArg(responseTypeArg)
 	if err != nil {
 		return filters, err
 	}
-	payloadRoleFilter, provided, err := parsePayloadRoleArg(payloadRoleArg)
+	eventMsgTypeFilter, eventMsgTypeProvided, err := parseEventMsgTypeArg(eventMsgTypeArg)
+	if err != nil {
+		return filters, err
+	}
+	payloadRoleFilter, roleProvided, err := parsePayloadRoleArg(payloadRoleArg)
 	if err != nil {
 		return filters, err
 	}
@@ -201,15 +208,22 @@ func buildViewFilters(allFilter bool, entryArg, payloadTypeArg, payloadRoleArg s
 		}
 	}
 
-	if typeProvided {
-		filters.payloadTypes = payloadTypeFilter
+	if responseTypeProvided {
+		filters.responseItemTypes = responseTypeFilter
 	} else {
-		filters.payloadTypes = map[model.PayloadType]struct{}{
-			model.PayloadTypeMessage: {},
+		filters.responseItemTypes = map[model.ResponseItemType]struct{}{
+			model.ResponseItemTypeMessage: {},
 		}
 	}
 
-	if provided {
+	if eventMsgTypeProvided {
+		filters.eventMsgTypes = eventMsgTypeFilter
+	} else {
+		// Default: no event_msg types (since EntryTypeEventMsg is excluded by default)
+		filters.eventMsgTypes = nil
+	}
+
+	if roleProvided {
 		filters.payloadRoles = payloadRoleFilter
 	} else {
 		filters.payloadRoles = map[model.PayloadRole]struct{}{
@@ -233,6 +247,8 @@ func parseEntryTypeArg(arg string) (map[model.EntryType]struct{}, bool, error) {
 	lookup := map[string]model.EntryType{
 		"session_meta":  model.EntryTypeSessionMeta,
 		"response_item": model.EntryTypeResponseItem,
+		"event_msg":     model.EntryTypeEventMsg,
+		"turn_context":  model.EntryTypeTurnContext,
 	}
 
 	set := make(map[model.EntryType]struct{}, len(values))
@@ -246,7 +262,7 @@ func parseEntryTypeArg(arg string) (map[model.EntryType]struct{}, bool, error) {
 	return set, true, nil
 }
 
-func parsePayloadTypeArg(arg string) (map[model.PayloadType]struct{}, bool, error) {
+func parseResponseTypeArg(arg string) (map[model.ResponseItemType]struct{}, bool, error) {
 	values := parseCSV(arg)
 	if len(values) == 0 {
 		return nil, false, nil
@@ -255,19 +271,50 @@ func parsePayloadTypeArg(arg string) (map[model.PayloadType]struct{}, bool, erro
 		return nil, true, nil
 	}
 
-	lookup := map[string]model.PayloadType{
-		"message":      model.PayloadTypeMessage,
-		"event_msg":    model.PayloadTypeEventMsg,
-		"turn_context": model.PayloadTypeTurnContext,
+	lookup := map[string]model.ResponseItemType{
+		"message":                model.ResponseItemTypeMessage,
+		"reasoning":              model.ResponseItemTypeReasoning,
+		"function_call":          model.ResponseItemTypeFunctionCall,
+		"function_call_output":   model.ResponseItemTypeFunctionCallOutput,
+		"custom_tool_call":       model.ResponseItemTypeCustomToolCall,
+		"custom_tool_call_output": model.ResponseItemTypeCustomToolCallOutput,
 	}
 
-	set := make(map[model.PayloadType]struct{}, len(values))
+	set := make(map[model.ResponseItemType]struct{}, len(values))
 	for _, token := range values {
-		payloadType, ok := lookup[token]
+		responseType, ok := lookup[token]
 		if !ok {
-			return nil, true, fmt.Errorf("unknown payload type %q", token)
+			return nil, true, fmt.Errorf("unknown response type %q", token)
 		}
-		set[payloadType] = struct{}{}
+		set[responseType] = struct{}{}
+	}
+	return set, true, nil
+}
+
+func parseEventMsgTypeArg(arg string) (map[model.EventMsgType]struct{}, bool, error) {
+	values := parseCSV(arg)
+	if len(values) == 0 {
+		return nil, false, nil
+	}
+	if len(values) == 1 && values[0] == "all" {
+		return nil, true, nil
+	}
+
+	lookup := map[string]model.EventMsgType{
+		"token_count":     model.EventMsgTypeTokenCount,
+		"agent_reasoning": model.EventMsgTypeAgentReasoning,
+		"user_message":    model.EventMsgTypeUserMessage,
+		"agent_message":   model.EventMsgTypeAgentMessage,
+		"turn_aborted":    model.EventMsgTypeTurnAborted,
+	}
+
+	set := make(map[model.EventMsgType]struct{}, len(values))
+	for _, token := range values {
+		eventMsgType, ok := lookup[token]
+		if !ok {
+			return nil, true, fmt.Errorf("unknown event_msg type %q", token)
+		}
+		set[eventMsgType] = struct{}{}
 	}
 	return set, true, nil
 }
@@ -321,14 +368,21 @@ func eventMatchesFilters(event model.Event, filters viewFilters) bool {
 		}
 	}
 
-	if event.Kind == model.EntryTypeResponseItem {
-		if filters.payloadTypes != nil {
-			if _, ok := filters.payloadTypes[event.MessageType]; !ok {
+	switch event.Kind {
+	case model.EntryTypeResponseItem:
+		if filters.responseItemTypes != nil {
+			if _, ok := filters.responseItemTypes[model.ResponseItemType(event.PayloadType)]; !ok {
 				return false
 			}
 		}
 		if filters.payloadRoles != nil {
 			if _, ok := filters.payloadRoles[event.Role]; !ok {
+				return false
+			}
+		}
+	case model.EntryTypeEventMsg:
+		if filters.eventMsgTypes != nil {
+			if _, ok := filters.eventMsgTypes[model.EventMsgType(event.PayloadType)]; !ok {
 				return false
 			}
 		}

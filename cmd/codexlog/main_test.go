@@ -30,7 +30,7 @@ func TestViewCommandFormatRaw(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(io.Discard)
-	path := filepath.Join("..", "..", "testdata", "sessions", "new", "sample.jsonl")
+	path := filepath.Join("..", "..", "testdata", "sessions", "sample-simple.jsonl")
 	cmd.SetArgs([]string{path, "--format", "raw"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("view command failed: %v", err)

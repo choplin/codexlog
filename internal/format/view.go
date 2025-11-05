@@ -33,13 +33,13 @@ func RenderEvent(event model.Event, wrapWidth int) string {
 	case model.EntryTypeResponseItem:
 		label := string(event.Role)
 		if label == "" {
-			label = string(event.MessageType)
+			label = event.PayloadType
 		}
 		return fmt.Sprintf("[%s][%s]\n%s", event.Timestamp.Format(time.RFC3339), label, strings.Join(lines, "\n"))
 	default:
 		label := string(event.Kind)
 		if label == "" {
-			label = string(event.MessageType)
+			label = event.PayloadType
 		}
 		if label == "" {
 			label = "event"
