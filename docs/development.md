@@ -5,7 +5,7 @@ updated: 2025-11-06
 
 # Development Guide
 
-This document explains how to set up the development environment, coding conventions, and development workflow for codexlog.
+This document explains how to set up the development environment, coding conventions, and development workflow for agentlog.
 
 ## Prerequisites
 
@@ -18,8 +18,8 @@ This document explains how to set up the development environment, coding convent
 ### Clone and Install Dependencies
 
 ```bash
-git clone https://github.com/choplin/codexlog.git
-cd codexlog
+git clone https://github.com/choplin/agentlog.git
+cd agentlog
 go mod download
 ```
 
@@ -45,7 +45,7 @@ Current tools:
 make build
 ```
 
-The built binary will be placed at `bin/codexlog`.
+The built binary will be placed at `bin/agentlog`.
 
 ### Version Injection
 
@@ -64,7 +64,7 @@ LDFLAGS := -X main.version=$(VERSION)
 Check the version:
 
 ```bash
-./bin/codexlog --version
+./bin/agentlog --version
 ```
 
 ## Testing
@@ -166,13 +166,13 @@ When investigating a specific session during development:
 
 ```bash
 # Display raw JSONL
-./bin/codexlog view <session-id> --raw
+./bin/agentlog view <session-id> --raw
 
 # Show all entry types (no filters)
-./bin/codexlog view <session-id> --all --format chat
+./bin/agentlog view <session-id> --all --format chat
 
 # Show specific entry types only
-./bin/codexlog view <session-id> -E response_item -T function_call
+./bin/agentlog view <session-id> -E response_item -T function_call
 ```
 
 ### Terminal Width and Color Handling
@@ -192,10 +192,10 @@ During debugging:
 
 ```bash
 # Force enable color
-./bin/codexlog view <session-id> --format chat --color
+./bin/agentlog view <session-id> --format chat --color
 
 # Disable color
-./bin/codexlog view <session-id> --format chat --no-color
+./bin/agentlog view <session-id> --format chat --no-color
 ```
 
 ### Parser Debugging
@@ -203,7 +203,7 @@ During debugging:
 Use the `--raw` flag to debug the parser:
 
 ```bash
-./bin/codexlog view <session-id> --raw | jq
+./bin/agentlog view <session-id> --raw | jq
 ```
 
 This outputs the filtered raw JSONL, making it easier to verify parsing logic.

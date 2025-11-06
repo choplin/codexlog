@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"codexlog/internal/model"
+	"agentlog/internal/model"
 )
 
 func TestRenderEventLines_Text(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"codexlog/internal/model"
+	"agentlog/internal/model"
 )
 
 // ErrSessionMetaNotFound is returned when a JSONL file lacks session_meta.

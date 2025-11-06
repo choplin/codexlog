@@ -5,11 +5,11 @@ updated: 2025-11-06
 
 # Architecture
 
-This document describes the architecture of codexlog, a CLI tool for browsing and analyzing Codex session logs.
+This document describes the architecture of agentlog, a CLI tool for browsing and analyzing Codex session logs.
 
 ## Overview
 
-codexlog is a Go-based CLI application that parses JSONL (JSON Lines) session logs produced by the Codex CLI and provides various viewing and filtering capabilities.
+agentlog is a Go-based CLI application that parses JSONL (JSON Lines) session logs produced by the Codex CLI and provides various viewing and filtering capabilities.
 
 ```
 ┌─────────────┐
@@ -41,7 +41,7 @@ codexlog is a Go-based CLI application that parses JSONL (JSON Lines) session lo
 
 ## Package Structure
 
-### cmd/codexlog
+### cmd/agentlog
 
 Entry point for the CLI application. Contains:
 
@@ -185,7 +185,7 @@ User → CLI (view) → Store.FindSessionPath()
 
 ### Adding New Commands
 
-1. Create command function in `cmd/codexlog/main.go`
+1. Create command function in `cmd/agentlog/main.go`
 2. Add to `rootCmd.AddCommand()`
 3. Use existing internal packages for implementation
 
@@ -206,7 +206,7 @@ User → CLI (view) → Store.FindSessionPath()
 
 - **Unit tests**: Each internal package has `*_test.go` files
 - **Test data**: `testdata/sessions/` contains sample JSONL files
-- **Integration tests**: Command-level tests in `cmd/codexlog/`
+- **Integration tests**: Command-level tests in `cmd/agentlog/`
 - **CI**: GitHub Actions runs tests on every push
 
 ## Dependencies

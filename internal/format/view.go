@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"codexlog/internal/model"
+	"agentlog/internal/model"
 )
 
 // RenderEventLines returns the formatted body lines for a session event.

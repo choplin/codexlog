@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"codexlog/internal/model"
-	"codexlog/internal/parser"
+	"agentlog/internal/model"
+	"agentlog/internal/parser"
 )
 
 var errStop = errors.New("stop iteration")

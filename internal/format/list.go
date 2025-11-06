@@ -10,7 +10,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 
-	"codexlog/internal/model"
+	"agentlog/internal/model"
 )
 
 // WriteSummaries writes session summaries to w in the requested format.

@@ -8,8 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"codexlog/internal/format"
-	"codexlog/internal/model"
+	"agentlog/internal/format"
+	"agentlog/internal/model"
 
 	"github.com/mattn/go-runewidth"
 )

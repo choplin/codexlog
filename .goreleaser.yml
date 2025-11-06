@@ -6,9 +6,9 @@ before:
     - go test ./...
 
 builds:
-  - id: codexlog
-    main: ./cmd/codexlog
-    binary: codexlog
+  - id: agentlog
+    main: ./cmd/agentlog
+    binary: agentlog
     env:
       - CGO_ENABLED=0
     goos:
@@ -22,7 +22,7 @@ builds:
       - -X main.version={{.Version}}
 
 archives:
-  - id: codexlog
+  - id: agentlog
     format: tar.gz
     name_template: >-
       {{ .ProjectName }}_
@@ -69,12 +69,12 @@ release:
 
     ### Homebrew
     ```bash
-    brew install choplin/tap/codexlog
+    brew install choplin/tap/agentlog
     ```
 
     ### Go Install
     ```bash
-    go install github.com/choplin/codexlog/cmd/codexlog@{{ .Tag }}
+    go install github.com/choplin/agentlog/cmd/agentlog@{{ .Tag }}
     ```
 
     ### Binary Download
@@ -85,13 +85,13 @@ brews:
       owner: choplin
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/choplin/codexlog
-    description: "Browse, search, and analyze Codex CLI sessions"
+    homepage: https://github.com/choplin/agentlog
+    description: "Browse, search, and analyze AI agent conversation logs"
     license: MIT
     dependencies:
       - name: go
         type: build
     test: |
-      system "#{bin}/codexlog", "--version"
+      system "#{bin}/agentlog", "--version"
     install: |
-      bin.install "codexlog"
+      bin.install "agentlog"

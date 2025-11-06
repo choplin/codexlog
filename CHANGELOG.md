@@ -5,11 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING**: Renamed project from `codexlog` to `agentlog`
+- **BREAKING**: Renamed environment variable from `CODEXLOG_SESSIONS_DIR` to `AGENTLOG_SESSIONS_DIR`
+- **BREAKING**: Renamed binary from `codexlog` to `agentlog`
+- **BREAKING**: Changed Homebrew tap from `choplin/tap/codexlog` to `choplin/tap/agentlog`
+- Updated project description to reflect support for AI agent conversation logs in general
+
 ## [0.1.0] - 2025-11-06
 
 ### Added
 
-- Initial release of codexlog
+- Initial release of agentlog
 - `list` command: Browse Codex session history with multiple output formats (table, plain, JSON, JSONL)
 - `info` command: Display detailed session metadata with text and JSON formats
 - `view` command: Render session transcripts in multiple formats (text, chat, raw)
@@ -20,6 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Proper handling of encrypted reasoning with summary fallback
 - Function call and function output display with JSON formatting
 - Response item type labels for better clarity
-- Environment variable support (CODEXLOG_SESSIONS_DIR)
+- Environment variable support (AGENTLOG_SESSIONS_DIR)
 
-[0.1.0]: https://github.com/choplin/codexlog/releases/tag/v0.1.0
+[0.1.0]: https://github.com/choplin/agentlog/releases/tag/v0.1.0

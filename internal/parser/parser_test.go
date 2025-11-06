@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"codexlog/internal/model"
+	"agentlog/internal/model"
 )
 
 func fixturePath(parts ...string) string {

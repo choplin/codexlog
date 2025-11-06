@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"codexlog/internal/format"
-	"codexlog/internal/parser"
-	"codexlog/internal/store"
-	"codexlog/internal/view"
+	"agentlog/internal/format"
+	"agentlog/internal/parser"
+	"agentlog/internal/store"
+	"agentlog/internal/view"
 
 	"github.com/spf13/cobra"
 )
@@ -21,8 +21,8 @@ import (
 var version = "dev"
 
 var rootCmd = &cobra.Command{
-	Use:     "codexlog",
-	Short:   "Browse, search, and analyze Codex CLI sessions",
+	Use:     "agentlog",
+	Short:   "Browse, search, and analyze AI agent conversation logs",
 	Version: version,
 }
 
@@ -34,7 +34,7 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "codexlog: %v\n", err)
+		fmt.Fprintf(os.Stderr, "agentlog: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -317,7 +317,7 @@ func resolveSessionPath(arg, root string) (string, error) {
 }
 
 func defaultSessionsDir() string {
-	if dir := os.Getenv("CODEXLOG_SESSIONS_DIR"); dir != "" {
+	if dir := os.Getenv("AGENTLOG_SESSIONS_DIR"); dir != "" {
 		return dir
 	}
 	home, err := os.UserHomeDir()

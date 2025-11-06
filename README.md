@@ -1,14 +1,14 @@
-# codexlog
+# agentlog
 
-[![CI](https://github.com/choplin/codexlog/actions/workflows/ci.yml/badge.svg)](https://github.com/choplin/codexlog/actions/workflows/ci.yml)
+[![CI](https://github.com/choplin/agentlog/actions/workflows/ci.yml/badge.svg)](https://github.com/choplin/agentlog/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org)
 
-Browse, search, and analyze Codex CLI sessions.
+Browse, search, and analyze AI agent conversation logs.
 
-## Why codexlog?
+## Why agentlog?
 
-Ever wished you could easily search through your past Codex conversations? Or review what decisions were made in previous sessions? codexlog gives you powerful tools to explore your Codex history:
+Ever wished you could easily search through your past AI agent conversations? Or review what decisions were made in previous sessions? agentlog gives you powerful tools to explore your conversation history:
 
 - 📊 **Instant overview** of all your sessions with duration and message counts
 - 🔍 **Quick search** through conversation summaries
@@ -19,13 +19,13 @@ Ever wished you could easily search through your past Codex conversations? Or re
 
 ```bash
 # Install via Homebrew
-brew install choplin/tap/codexlog
+brew install choplin/tap/agentlog
 
 # List your recent sessions
-codexlog list
+agentlog list
 
 # View a session in chat format
-codexlog view <session-id> --format chat
+agentlog view <session-id> --format chat
 ```
 
 ## Features
@@ -59,21 +59,21 @@ Relive your conversations with a familiar chat interface. User messages on the r
 ### Homebrew
 
 ```bash
-brew install choplin/tap/codexlog
+brew install choplin/tap/agentlog
 ```
 
 ### From Source
 
 ```bash
-go install github.com/choplin/codexlog/cmd/codexlog@latest
+go install github.com/choplin/agentlog/cmd/agentlog@latest
 ```
 
 ## Configuration
 
-By default, codexlog looks for session logs in `~/.codex/sessions`. You can override this with the `CODEXLOG_SESSIONS_DIR` environment variable:
+By default, agentlog looks for session logs in `~/.codex/sessions`. You can override this with the `AGENTLOG_SESSIONS_DIR` environment variable:
 
 ```bash
-export CODEXLOG_SESSIONS_DIR=/path/to/your/sessions
+export AGENTLOG_SESSIONS_DIR=/path/to/your/sessions
 ```
 
 Or use the `--sessions-dir` flag for individual commands.
@@ -84,40 +84,40 @@ Or use the `--sessions-dir` flag for individual commands.
 
 ```bash
 # List recent sessions
-codexlog list
+agentlog list
 
 # List all sessions
-codexlog list --all
+agentlog list --all
 
 # Different output formats
-codexlog list --format jsonl
-codexlog list --format plain
+agentlog list --format jsonl
+agentlog list --format plain
 ```
 
 ### View Session Details
 
 ```bash
 # Show session metadata
-codexlog info <session-id>
+agentlog info <session-id>
 
 # JSON output
-codexlog info <session-id> --format json
+agentlog info <session-id> --format json
 ```
 
 ### View Transcripts
 
 ```bash
 # Text format with numbered messages
-codexlog view <session-id>
+agentlog view <session-id>
 
 # Chat format with bubbles
-codexlog view <session-id> --format chat
+agentlog view <session-id> --format chat
 
 # Show all entry types (including reasoning, function calls)
-codexlog view <session-id> --format chat --all
+agentlog view <session-id> --format chat --all
 
 # Limit to recent messages
-codexlog view <session-id> --format chat --max 20
+agentlog view <session-id> --format chat --max 20
 ```
 
 ## Advanced Features

@@ -83,4 +83,4 @@ jobs:
         run: make build
 
       - name: Check version
-        run: ./bin/codexlog --version
+        run: ./bin/agentlog --version

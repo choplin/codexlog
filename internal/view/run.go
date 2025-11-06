@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"codexlog/internal/format"
-	"codexlog/internal/model"
-	"codexlog/internal/parser"
+	"agentlog/internal/format"
+	"agentlog/internal/model"
+	"agentlog/internal/parser"
 
 	"github.com/mattn/go-isatty"
 	"golang.org/x/term"
