@@ -1,6 +1,8 @@
+// Package store provides session enumeration and search functionality.
 package store
 
 import (
+	"agentlog/internal/codex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -8,8 +10,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"agentlog/internal/codex"
 )
 
 var errStop = errors.New("stop iteration")
@@ -118,15 +118,15 @@ func ListSessions(opts ListOptions) (ListResult, error) {
 	return result, nil
 }
 
-func truncate(s string, max int) string {
-	if len(s) <= max {
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
 		return s
 	}
 	runes := []rune(s)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return s
 	}
-	return string(runes[:max]) + "…"
+	return string(runes[:maxLen]) + "…"
 }
 
 // FindSessionPath searches for a session file whose session_meta id matches id.

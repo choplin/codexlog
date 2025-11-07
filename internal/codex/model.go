@@ -1,9 +1,9 @@
+// Package codex provides types and parsers for Codex CLI session logs.
 package codex
 
 import (
-	"time"
-
 	"agentlog/internal/model"
+	"time"
 )
 
 // Codex-specific types and constants
@@ -64,14 +64,26 @@ type CodexSessionSummary struct {
 	DurationSeconds int
 }
 
-// Implement SessionSummaryProvider interface
-func (s *CodexSessionSummary) GetID() string             { return s.ID }
-func (s *CodexSessionSummary) GetPath() string           { return s.Path }
-func (s *CodexSessionSummary) GetCWD() string            { return s.CWD }
-func (s *CodexSessionSummary) GetStartedAt() time.Time   { return s.StartedAt }
-func (s *CodexSessionSummary) GetSummary() string        { return s.Summary }
-func (s *CodexSessionSummary) GetMessageCount() int      { return s.MessageCount }
-func (s *CodexSessionSummary) GetDurationSeconds() int   { return s.DurationSeconds }
+// GetID returns the session ID.
+func (s *CodexSessionSummary) GetID() string { return s.ID }
+
+// GetPath returns the file path.
+func (s *CodexSessionSummary) GetPath() string { return s.Path }
+
+// GetCWD returns the working directory.
+func (s *CodexSessionSummary) GetCWD() string { return s.CWD }
+
+// GetStartedAt returns the start timestamp.
+func (s *CodexSessionSummary) GetStartedAt() time.Time { return s.StartedAt }
+
+// GetSummary returns the summary text.
+func (s *CodexSessionSummary) GetSummary() string { return s.Summary }
+
+// GetMessageCount returns the number of messages.
+func (s *CodexSessionSummary) GetMessageCount() int { return s.MessageCount }
+
+// GetDurationSeconds returns the session duration in seconds.
+func (s *CodexSessionSummary) GetDurationSeconds() int { return s.DurationSeconds }
 
 // CodexSessionMeta represents metadata stored in the session_meta payload.
 type CodexSessionMeta struct {
@@ -83,10 +95,16 @@ type CodexSessionMeta struct {
 	StartedAt  time.Time
 }
 
-// Implement SessionMetaProvider interface
-func (m *CodexSessionMeta) GetID() string           { return m.ID }
-func (m *CodexSessionMeta) GetPath() string         { return m.Path }
-func (m *CodexSessionMeta) GetCWD() string          { return m.CWD }
+// GetID returns the session ID.
+func (m *CodexSessionMeta) GetID() string { return m.ID }
+
+// GetPath returns the file path.
+func (m *CodexSessionMeta) GetPath() string { return m.Path }
+
+// GetCWD returns the working directory.
+func (m *CodexSessionMeta) GetCWD() string { return m.CWD }
+
+// GetStartedAt returns the start timestamp.
 func (m *CodexSessionMeta) GetStartedAt() time.Time { return m.StartedAt }
 
 // CodexEvent represents a single entry in the Codex session JSONL stream.
@@ -99,10 +117,14 @@ type CodexEvent struct {
 	Raw         string
 }
 
-// Implement EventProvider interface
-func (e *CodexEvent) GetTimestamp() time.Time         { return e.Timestamp }
+// GetTimestamp returns the event timestamp.
+func (e *CodexEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// GetContent returns the content blocks.
 func (e *CodexEvent) GetContent() []model.ContentBlock { return e.Content }
-func (e *CodexEvent) GetRaw() string                  { return e.Raw }
+
+// GetRaw returns the raw JSON string.
+func (e *CodexEvent) GetRaw() string { return e.Raw }
 
 // GetRole returns a normalized role string for the event.
 // For Codex events, we use the PayloadRole if available, otherwise Kind.

@@ -1,15 +1,15 @@
+// Package view provides rendering and display logic for session logs.
 package view
 
 import (
+	"agentlog/internal/codex"
+	"agentlog/internal/format"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
-
-	"agentlog/internal/format"
-	"agentlog/internal/codex"
 
 	"github.com/mattn/go-runewidth"
 )
@@ -62,8 +62,8 @@ func renderChatBubble(event codex.CodexEvent, totalWidth int, padding int, useCo
 
 	if useColor && len(content) > 0 {
 		colored := fmt.Sprintf("%s · %s",
-			colorize(true, roleColor(rawRole), headerLabel),
-			colorize(true, ansiTimestamp, headerTime),
+			colorize(roleColor(rawRole), headerLabel),
+			colorize(ansiTimestamp, headerTime),
 		)
 		content[0] = strings.Replace(content[0], headerText, colored, 1)
 	}
@@ -89,7 +89,7 @@ func renderBubbleBodyLine(line string, bubbleWidth int, leftPad int, useColor bo
 
 	border := "|"
 	if useColor {
-		border = colorize(true, ansiSeparator, border)
+		border = colorize(ansiSeparator, border)
 	}
 
 	return fmt.Sprintf("%s%s %s%s %s", strings.Repeat(" ", leftPad), border, line, strings.Repeat(" ", paddingRight), border)
@@ -245,13 +245,13 @@ func titleCase(text string) string {
 }
 
 func contentMaxWidth(lines []string) int {
-	max := 0
+	maxWidth := 0
 	for _, line := range lines {
-		if w := visibleWidth(line); w > max {
-			max = w
+		if w := visibleWidth(line); w > maxWidth {
+			maxWidth = w
 		}
 	}
-	return max
+	return maxWidth
 }
 
 func truncateToWidth(text string, width int) string {

@@ -1,6 +1,8 @@
+// Package format provides formatting and rendering functions for session data.
 package format
 
 import (
+	"agentlog/internal/codex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,8 +11,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-
-	"agentlog/internal/codex"
 )
 
 // WriteSummaries writes session summaries to w in the requested format.

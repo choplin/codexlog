@@ -1,6 +1,7 @@
 package codex
 
 import (
+	"agentlog/internal/model"
 	"bufio"
 	"encoding/json"
 	"errors"
@@ -8,8 +9,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"agentlog/internal/model"
 )
 
 // ErrSessionMetaNotFound is returned when a JSONL file lacks session_meta.
@@ -21,7 +20,7 @@ func ReadSessionMeta(path string) (*CodexSessionMeta, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open session file: %w", err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	scanner := newScanner(file)
 	for scanner.Scan() {
@@ -50,7 +49,7 @@ func FirstUserSummary(path string) (summary string, messageCount int, lastTimest
 	if err != nil {
 		return "", 0, time.Time{}, fmt.Errorf("open session file: %w", err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	scanner := newScanner(file)
 	for scanner.Scan() {
@@ -86,7 +85,7 @@ func IterateEvents(path string, fn func(CodexEvent) error) error {
 	if err != nil {
 		return fmt.Errorf("open session file: %w", err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	scanner := newScanner(file)
 	for scanner.Scan() {
@@ -178,11 +177,11 @@ type functionCallPayload struct {
 }
 
 type tokenUsage struct {
-	InputTokens         int `json:"input_tokens"`
-	CachedInputTokens   int `json:"cached_input_tokens"`
-	OutputTokens        int `json:"output_tokens"`
-	ReasoningTokens     int `json:"reasoning_output_tokens"`
-	TotalTokens         int `json:"total_tokens"`
+	InputTokens       int `json:"input_tokens"`
+	CachedInputTokens int `json:"cached_input_tokens"`
+	OutputTokens      int `json:"output_tokens"`
+	ReasoningTokens   int `json:"reasoning_output_tokens"`
+	TotalTokens       int `json:"total_tokens"`
 }
 
 type tokenCountInfo struct {
@@ -199,13 +198,13 @@ type eventMsgPayload struct {
 }
 
 type turnContextPayload struct {
-	TurnID          string `json:"turn_id"`
-	Context         string `json:"context"`
-	CWD             string `json:"cwd"`
-	Model           string `json:"model"`
-	Effort          string `json:"effort"`
-	Summary         string `json:"summary"`
-	ApprovalPolicy  string `json:"approval_policy"`
+	TurnID         string `json:"turn_id"`
+	Context        string `json:"context"`
+	CWD            string `json:"cwd"`
+	Model          string `json:"model"`
+	Effort         string `json:"effort"`
+	Summary        string `json:"summary"`
+	ApprovalPolicy string `json:"approval_policy"`
 }
 
 func tryParseMeta(raw []byte) (*CodexSessionMeta, bool, error) {
@@ -310,7 +309,8 @@ func parseEvent(raw []byte) (CodexEvent, error) {
 		event.PayloadType = payload.Type
 
 		// Handle function_call and custom_tool_call types
-		if payload.Type == "function_call" || payload.Type == "custom_tool_call" {
+		switch payload.Type {
+		case "function_call", "custom_tool_call":
 			if payload.Name != "" {
 				event.Content = []model.ContentBlock{
 					{Type: "function_name", Text: payload.Name},
@@ -319,7 +319,7 @@ func parseEvent(raw []byte) (CodexEvent, error) {
 			} else {
 				event.Content = decodeContentBlocks(payload.Content)
 			}
-		} else if payload.Type == "function_call_output" || payload.Type == "custom_tool_call_output" {
+		case "function_call_output", "custom_tool_call_output":
 			// Handle function_call_output and custom_tool_call_output
 			if payload.Output != "" {
 				event.Content = []model.ContentBlock{
@@ -328,7 +328,7 @@ func parseEvent(raw []byte) (CodexEvent, error) {
 			} else {
 				event.Content = decodeContentBlocks(payload.Content)
 			}
-		} else {
+		default:
 			event.Content = decodeContentBlocks(payload.Content)
 			// If content is empty or null, try summary (for encrypted reasoning)
 			if len(event.Content) == 0 && len(payload.Summary) > 0 {

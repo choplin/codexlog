@@ -1,3 +1,4 @@
+// Package model provides common interfaces and types for agent log implementations.
 package model
 
 import "time"

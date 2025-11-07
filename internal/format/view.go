@@ -1,14 +1,13 @@
 package format
 
 import (
+	"agentlog/internal/codex"
+	"agentlog/internal/model"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
-
-	"agentlog/internal/codex"
-	"agentlog/internal/model"
 )
 
 // RenderEventLines returns the formatted body lines for a session event.

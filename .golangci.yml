@@ -1,0 +1,45 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.25"
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - nilnil
+    - bodyclose
+    - errorlint
+    - misspell
+    - unconvert
+    - unparam
+    - revive
+  disable:
+    - gosec  # Too many false positives for file path usage
+    - nilerr # Intentional error ignoring in some cases
+  settings:
+    staticcheck:
+      checks: ["all"]
+    revive:
+      rules:
+        - name: exported
+          disabled: true  # Too verbose for internal packages
+        - name: package-comments
+          disabled: false
+        - name: redefines-builtin-id
+          disabled: false
+        - name: unused-parameter
+          disabled: false
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [errcheck]
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports

@@ -1,12 +1,11 @@
 package format
 
 import (
+	"agentlog/internal/codex"
+	"agentlog/internal/model"
 	"strings"
 	"testing"
 	"time"
-
-	"agentlog/internal/codex"
-	"agentlog/internal/model"
 )
 
 func TestRenderEventLines_Text(t *testing.T) {

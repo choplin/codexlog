@@ -1,12 +1,11 @@
 package format
 
 import (
+	"agentlog/internal/codex"
 	"bytes"
 	"strings"
 	"testing"
 	"time"
-
-	"agentlog/internal/codex"
 )
 
 func sampleSummaries() []codex.CodexSessionSummary {

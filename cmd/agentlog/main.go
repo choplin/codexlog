@@ -1,6 +1,11 @@
+// Package main provides the agentlog CLI for browsing AI agent conversation logs.
 package main
 
 import (
+	"agentlog/internal/codex"
+	"agentlog/internal/format"
+	"agentlog/internal/store"
+	"agentlog/internal/view"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,11 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"agentlog/internal/codex"
-	"agentlog/internal/format"
-	"agentlog/internal/store"
-	"agentlog/internal/view"
 
 	"github.com/spf13/cobra"
 )
@@ -55,7 +55,7 @@ func newListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List session metadata in reverse chronological order",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if all && cwd != "" {
 				return errors.New("--cwd cannot be used with --all")
 			}
@@ -106,7 +106,7 @@ func newListCmd() *cobra.Command {
 
 			errs := cmd.ErrOrStderr()
 			for _, warn := range result.Warnings {
-				fmt.Fprintf(errs, "warning: %v\n", warn)
+				fmt.Fprintf(errs, "warning: %v\n", warn) //nolint:errcheck
 			}
 
 			includeHeader := !noHeader
@@ -358,27 +358,26 @@ func renderInfoText(out io.Writer, payload infoPayload, summarySnippet string) {
 	writeKV(out, labelWidth, "Message Count", fmt.Sprintf("%d", payload.MessageCount))
 	writeKV(out, labelWidth, "JSONL Path", payload.JSONLPath)
 	writeKV(out, labelWidth, "Summary", summarySnippet)
-
 }
 
 func writeKV(out io.Writer, width int, label string, value string) {
-	fmt.Fprintf(out, "%-*s: %s\n", width, label, value)
+	fmt.Fprintf(out, "%-*s: %s\n", width, label, value) //nolint:errcheck
 }
 
 func collapseWhitespace(text string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(text)), " ")
 }
 
-func clipSummary(text string, max int) string {
-	if max <= 0 {
+func clipSummary(text string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
 	runes := []rune(text)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return text
 	}
-	if max == 1 {
+	if maxLen == 1 {
 		return "…"
 	}
-	return string(runes[:max-1]) + "…"
+	return string(runes[:maxLen-1]) + "…"
 }

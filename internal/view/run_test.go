@@ -1,15 +1,14 @@
 package view
 
 import (
+	"agentlog/internal/codex"
+	"agentlog/internal/model"
 	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"agentlog/internal/codex"
-	"agentlog/internal/model"
 )
 
 func TestBuildViewFiltersDefaults(t *testing.T) {
@@ -71,17 +70,17 @@ func TestRenderChatLinesAlignment(t *testing.T) {
 		{
 			Role:      codex.PayloadRoleUser,
 			Timestamp: time.Date(2025, 10, 27, 12, 0, 0, 0, time.UTC),
-			Content: []model.ContentBlock{{Type: "text", Text: "hello there"}},
+			Content:   []model.ContentBlock{{Type: "text", Text: "hello there"}},
 		},
 		{
 			Role:      codex.PayloadRoleAssistant,
 			Timestamp: time.Date(2025, 10, 27, 12, 0, 5, 0, time.UTC),
-			Content: []model.ContentBlock{{Type: "text", Text: "hi, how can I help you today?"}},
+			Content:   []model.ContentBlock{{Type: "text", Text: "hi, how can I help you today?"}},
 		},
 		{
 			Role:      codex.PayloadRoleTool,
 			Timestamp: time.Date(2025, 10, 27, 12, 0, 10, 0, time.UTC),
-			Content: []model.ContentBlock{{Type: "json", Text: `{"result":"ok"}`}},
+			Content:   []model.ContentBlock{{Type: "json", Text: `{"result":"ok"}`}},
 		},
 	}
 
@@ -204,17 +203,17 @@ func TestFilterCombinations(t *testing.T) {
 			description:     "should show all event_msg entries (response-type filter is ignored)",
 		},
 		{
-			name:          "filter by user role only",
-			entryTypeArg:  "response_item",
+			name:           "filter by user role only",
+			entryTypeArg:   "response_item",
 			payloadRoleArg: "user",
-			expectedCount: 2,
-			description:   "should show only user messages",
+			expectedCount:  2,
+			description:    "should show only user messages",
 		},
 		{
-			name:         "filter turn_context",
-			entryTypeArg: "turn_context",
+			name:          "filter turn_context",
+			entryTypeArg:  "turn_context",
 			expectedCount: 1,
-			description:  "should show turn_context entry",
+			description:   "should show turn_context entry",
 		},
 	}
 

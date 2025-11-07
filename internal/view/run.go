@@ -1,6 +1,8 @@
 package view
 
 import (
+	"agentlog/internal/codex"
+	"agentlog/internal/format"
 	"fmt"
 	"io"
 	"os"
@@ -9,29 +11,26 @@ import (
 	"strings"
 	"time"
 
-	"agentlog/internal/codex"
-	"agentlog/internal/format"
-
 	"github.com/mattn/go-isatty"
 	"golang.org/x/term"
 )
 
 // Options defines the configurable parameters for rendering a view.
 type Options struct {
-	Path             string
-	Format           string
-	Wrap             int
-	MaxEvents        int
-	EntryTypeArg     string
-	ResponseTypeArg  string
-	EventMsgTypeArg  string
-	PayloadRoleArg   string
-	AllFilter        bool
-	ForceColor       bool
-	ForceNoColor     bool
-	RawFile          bool
-	Out              io.Writer
-	OutFile          *os.File
+	Path            string
+	Format          string
+	Wrap            int
+	MaxEvents       int
+	EntryTypeArg    string
+	ResponseTypeArg string
+	EventMsgTypeArg string
+	PayloadRoleArg  string
+	AllFilter       bool
+	ForceColor      bool
+	ForceNoColor    bool
+	RawFile         bool
+	Out             io.Writer
+	OutFile         *os.File
 }
 
 // Run renders a session log according to the provided options.
@@ -78,7 +77,7 @@ func Run(opts Options) error {
 			count := 0
 			return processEvents(func(event codex.CodexEvent) error {
 				if count > 0 {
-					fmt.Fprintln(opts.Out)
+					fmt.Fprintln(opts.Out) //nolint:errcheck
 				}
 				printEvent(opts.Out, event, count+1, opts.Wrap, useColor)
 				count++
@@ -94,7 +93,7 @@ func Run(opts Options) error {
 		}
 		for idx, event := range ring.slice() {
 			if idx > 0 {
-				fmt.Fprintln(opts.Out)
+				fmt.Fprintln(opts.Out) //nolint:errcheck
 			}
 			printEvent(opts.Out, event, idx+1, opts.Wrap, useColor)
 		}
@@ -103,7 +102,7 @@ func Run(opts Options) error {
 	case "raw":
 		if opts.MaxEvents == 0 {
 			return processEvents(func(event codex.CodexEvent) error {
-				_, err := fmt.Fprintln(opts.Out, event.Raw)
+				_, err := fmt.Fprintln(opts.Out, event.Raw) //nolint:errcheck
 				return err
 			})
 		}
@@ -115,7 +114,7 @@ func Run(opts Options) error {
 			return err
 		}
 		for _, event := range ring.slice() {
-			fmt.Fprintln(opts.Out, event.Raw)
+			fmt.Fprintln(opts.Out, event.Raw) //nolint:errcheck
 		}
 		return nil
 
@@ -271,11 +270,11 @@ func parseResponseTypeArg(arg string) (map[codex.ResponseItemType]struct{}, bool
 	}
 
 	lookup := map[string]codex.ResponseItemType{
-		"message":                codex.ResponseItemTypeMessage,
-		"reasoning":              codex.ResponseItemTypeReasoning,
-		"function_call":          codex.ResponseItemTypeFunctionCall,
-		"function_call_output":   codex.ResponseItemTypeFunctionCallOutput,
-		"custom_tool_call":       codex.ResponseItemTypeCustomToolCall,
+		"message":                 codex.ResponseItemTypeMessage,
+		"reasoning":               codex.ResponseItemTypeReasoning,
+		"function_call":           codex.ResponseItemTypeFunctionCall,
+		"function_call_output":    codex.ResponseItemTypeFunctionCallOutput,
+		"custom_tool_call":        codex.ResponseItemTypeCustomToolCall,
 		"custom_tool_call_output": codex.ResponseItemTypeCustomToolCallOutput,
 	}
 
@@ -470,7 +469,7 @@ func pipeThroughPager(lines []string, colorEnabled bool) error {
 		return fmt.Errorf("create pager pipe: %w", err)
 	}
 	go func() {
-		defer stdin.Close()
+		defer stdin.Close()         //nolint:errcheck
 		io.WriteString(stdin, text) //nolint:errcheck
 	}()
 
@@ -512,38 +511,38 @@ func printEvent(out io.Writer, event codex.CodexEvent, index int, wrap int, useC
 	separator := "|"
 
 	if useColor {
-		indexText = colorize(true, ansiBoldWhite, indexText)
-		roleText = colorize(true, roleColor(roleLabel), roleText)
-		tsText = colorize(true, ansiTimestamp, tsText)
-		separator = colorize(true, ansiSeparator, "|")
+		indexText = colorize(ansiBoldWhite, indexText)
+		roleText = colorize(roleColor(roleLabel), roleText)
+		tsText = colorize(ansiTimestamp, tsText)
+		separator = colorize(ansiSeparator, "|")
 	}
 
 	header := fmt.Sprintf("[%s] %s %s %s", indexText, roleText, separator, tsText)
-	fmt.Fprintln(out, header)
-	fmt.Fprintln(out, strings.Repeat("-", len(headerPlain)))
+	fmt.Fprintln(out, header)                                //nolint:errcheck
+	fmt.Fprintln(out, strings.Repeat("-", len(headerPlain))) //nolint:errcheck
 
 	lines := format.RenderEventLines(event, wrap)
 	if len(lines) == 0 {
 		prefix := "|"
 		if useColor {
-			prefix = colorize(true, ansiSeparator, "|")
+			prefix = colorize(ansiSeparator, "|")
 		}
-		fmt.Fprintf(out, "%s %s\n", prefix, "(no content)")
+		fmt.Fprintf(out, "%s %s\n", prefix, "(no content)") //nolint:errcheck
 		return
-}
+	}
 	linePrefix := "| "
 	emptyPrefix := "|"
 	if useColor {
-		separatorColor := colorize(true, ansiSeparator, "|")
+		separatorColor := colorize(ansiSeparator, "|")
 		linePrefix = separatorColor + " "
 		emptyPrefix = separatorColor
 	}
 	for _, line := range lines {
 		if line == "" {
-			fmt.Fprintln(out, emptyPrefix)
+			fmt.Fprintln(out, emptyPrefix) //nolint:errcheck
 			continue
 		}
-		fmt.Fprintf(out, "%s%s\n", linePrefix, line)
+		fmt.Fprintf(out, "%s%s\n", linePrefix, line) //nolint:errcheck
 	}
 }
 
@@ -557,10 +556,7 @@ const (
 	ansiTool      = "\x1b[38;5;207m"
 )
 
-func colorize(enabled bool, code string, text string) string {
-	if !enabled {
-		return text
-	}
+func colorize(code string, text string) string {
 	return code + text + ansiReset
 }
 
@@ -604,7 +600,7 @@ func copyFile(dst io.Writer, path string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	_, err = io.Copy(dst, f)
 	return err
