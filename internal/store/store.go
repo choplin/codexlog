@@ -9,8 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"agentlog/internal/model"
-	"agentlog/internal/parser"
+	"agentlog/internal/codex"
 )
 
 var errStop = errors.New("stop iteration")
@@ -28,7 +27,7 @@ type ListOptions struct {
 
 // ListResult contains session summaries and non-fatal warnings.
 type ListResult struct {
-	Summaries []model.SessionSummary
+	Summaries []codex.CodexSessionSummary
 	Warnings  []error
 }
 
@@ -51,7 +50,7 @@ func ListSessions(opts ListOptions) (ListResult, error) {
 			return nil
 		}
 
-		meta, err := parser.ReadSessionMeta(path)
+		meta, err := codex.ReadSessionMeta(path)
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Errorf("parse meta %s: %w", path, err))
 			return nil
@@ -74,7 +73,7 @@ func ListSessions(opts ListOptions) (ListResult, error) {
 			return nil
 		}
 
-		summaryText, count, lastTimestamp, err := parser.FirstUserSummary(path)
+		summaryText, count, lastTimestamp, err := codex.FirstUserSummary(path)
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Errorf("extract summary %s: %w", path, err))
 			return nil
@@ -90,7 +89,7 @@ func ListSessions(opts ListOptions) (ListResult, error) {
 
 		duration := durationSeconds(meta.StartedAt, lastTimestamp)
 
-		result.Summaries = append(result.Summaries, model.SessionSummary{
+		result.Summaries = append(result.Summaries, codex.CodexSessionSummary{
 			ID:              meta.ID,
 			Path:            path,
 			CWD:             meta.CWD,
@@ -147,7 +146,7 @@ func FindSessionPath(root, id string) (string, error) {
 		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
 			return nil
 		}
-		meta, err := parser.ReadSessionMeta(path)
+		meta, err := codex.ReadSessionMeta(path)
 		if err != nil {
 			return nil
 		}

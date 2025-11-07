@@ -7,13 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"agentlog/internal/codex"
 	"agentlog/internal/model"
 )
 
 // RenderEventLines returns the formatted body lines for a session event.
-func RenderEventLines(event model.Event, wrapWidth int) []string {
+func RenderEventLines(event codex.CodexEvent, wrapWidth int) []string {
 	switch event.Kind {
-	case model.EntryTypeSessionMeta:
+	case codex.EntryTypeSessionMeta:
 		return []string{fmt.Sprintf("Session %s (%s)", contentValue(event.Content, "id"), event.Timestamp.Format(time.RFC3339))}
 	default:
 		body := renderBlocks(event.Content, wrapWidth)
@@ -25,12 +26,12 @@ func RenderEventLines(event model.Event, wrapWidth int) []string {
 }
 
 // RenderEvent converts a session event into a printable string (legacy helper).
-func RenderEvent(event model.Event, wrapWidth int) string {
+func RenderEvent(event codex.CodexEvent, wrapWidth int) string {
 	lines := RenderEventLines(event, wrapWidth)
 	switch event.Kind {
-	case model.EntryTypeSessionMeta:
+	case codex.EntryTypeSessionMeta:
 		return strings.Join(lines, "\n")
-	case model.EntryTypeResponseItem:
+	case codex.EntryTypeResponseItem:
 		label := string(event.Role)
 		if label == "" {
 			label = event.PayloadType

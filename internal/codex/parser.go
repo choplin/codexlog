@@ -1,4 +1,4 @@
-package parser
+package codex
 
 import (
 	"bufio"
@@ -16,7 +16,7 @@ import (
 var ErrSessionMetaNotFound = errors.New("session_meta record not found")
 
 // ReadSessionMeta loads metadata from the first session_meta record in path.
-func ReadSessionMeta(path string) (*model.SessionMeta, error) {
+func ReadSessionMeta(path string) (*CodexSessionMeta, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open session file: %w", err)
@@ -64,9 +64,9 @@ func FirstUserSummary(path string) (summary string, messageCount int, lastTimest
 			lastTimestamp = event.Timestamp
 		}
 
-		if event.Kind == model.EntryTypeResponseItem {
+		if event.Kind == EntryTypeResponseItem {
 			messageCount++
-			if summary == "" && event.Role == model.PayloadRoleUser {
+			if summary == "" && event.Role == PayloadRoleUser {
 				summary = buildSummaryText(event.Content)
 			}
 		}
@@ -81,7 +81,7 @@ func FirstUserSummary(path string) (summary string, messageCount int, lastTimest
 
 // IterateEvents walks through the session JSONL file and calls fn for each
 // decoded event.
-func IterateEvents(path string, fn func(model.Event) error) error {
+func IterateEvents(path string, fn func(CodexEvent) error) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open session file: %w", err)
@@ -208,13 +208,13 @@ type turnContextPayload struct {
 	ApprovalPolicy  string `json:"approval_policy"`
 }
 
-func tryParseMeta(raw []byte) (*model.SessionMeta, bool, error) {
+func tryParseMeta(raw []byte) (*CodexSessionMeta, bool, error) {
 	event, err := parseEvent(raw)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if event.Kind != model.EntryTypeSessionMeta {
+	if event.Kind != EntryTypeSessionMeta {
 		legacy := legacyMeta{}
 		if err := json.Unmarshal(raw, &legacy); err == nil && legacy.ID != "" {
 			tsValue := legacy.Timestamp
@@ -225,7 +225,7 @@ func tryParseMeta(raw []byte) (*model.SessionMeta, bool, error) {
 			if err != nil {
 				return nil, false, err
 			}
-			meta := &model.SessionMeta{
+			meta := &CodexSessionMeta{
 				ID:         legacy.ID,
 				CWD:        legacy.CWD,
 				Originator: legacy.Originator,
@@ -258,7 +258,7 @@ func tryParseMeta(raw []byte) (*model.SessionMeta, bool, error) {
 		return nil, false, err
 	}
 
-	meta := &model.SessionMeta{
+	meta := &CodexSessionMeta{
 		ID:         payload.ID,
 		CWD:        payload.CWD,
 		Originator: payload.Originator,
@@ -269,10 +269,10 @@ func tryParseMeta(raw []byte) (*model.SessionMeta, bool, error) {
 	return meta, true, nil
 }
 
-func parseEvent(raw []byte) (model.Event, error) {
+func parseEvent(raw []byte) (CodexEvent, error) {
 	var rec rawRecord
 	if err := json.Unmarshal(raw, &rec); err != nil {
-		return model.Event{}, fmt.Errorf("unmarshal record: %w", err)
+		return CodexEvent{}, fmt.Errorf("unmarshal record: %w", err)
 	}
 
 	var ts time.Time
@@ -280,33 +280,33 @@ func parseEvent(raw []byte) (model.Event, error) {
 		var err error
 		ts, err = parseTimestamp(rec.Timestamp)
 		if err != nil {
-			return model.Event{}, err
+			return CodexEvent{}, err
 		}
 	}
 
-	entryType := model.EntryType(rec.Type)
-	event := model.Event{
+	entryType := EntryType(rec.Type)
+	event := CodexEvent{
 		Timestamp: ts,
 		Kind:      entryType,
 		Raw:       string(raw),
 	}
 
 	switch entryType {
-	case model.EntryTypeSessionMeta:
+	case EntryTypeSessionMeta:
 		var payload sessionMetaPayload
 		if err := json.Unmarshal(rec.Payload, &payload); err != nil {
-			return model.Event{}, fmt.Errorf("unmarshal session_meta payload: %w", err)
+			return CodexEvent{}, fmt.Errorf("unmarshal session_meta payload: %w", err)
 		}
 		event.PayloadType = payload.Originator
 		event.Content = []model.ContentBlock{
 			{Type: "id", Text: payload.ID},
 		}
-	case model.EntryTypeResponseItem:
+	case EntryTypeResponseItem:
 		var payload functionCallPayload
 		if err := json.Unmarshal(rec.Payload, &payload); err != nil {
-			return model.Event{}, fmt.Errorf("unmarshal response payload: %w", err)
+			return CodexEvent{}, fmt.Errorf("unmarshal response payload: %w", err)
 		}
-		event.Role = model.PayloadRole(payload.Role)
+		event.Role = PayloadRole(payload.Role)
 		event.PayloadType = payload.Type
 
 		// Handle function_call and custom_tool_call types
@@ -335,10 +335,10 @@ func parseEvent(raw []byte) (model.Event, error) {
 				event.Content = decodeContentBlocks(payload.Summary)
 			}
 		}
-	case model.EntryTypeEventMsg:
+	case EntryTypeEventMsg:
 		var payload eventMsgPayload
 		if err := json.Unmarshal(rec.Payload, &payload); err != nil {
-			return model.Event{}, fmt.Errorf("unmarshal event_msg payload: %w", err)
+			return CodexEvent{}, fmt.Errorf("unmarshal event_msg payload: %w", err)
 		}
 		event.PayloadType = payload.Type
 
@@ -378,10 +378,10 @@ func parseEvent(raw []byte) (model.Event, error) {
 			blocks = decodeContentBlocks(rec.Payload)
 		}
 		event.Content = blocks
-	case model.EntryTypeTurnContext:
+	case EntryTypeTurnContext:
 		var payload turnContextPayload
 		if err := json.Unmarshal(rec.Payload, &payload); err != nil {
-			return model.Event{}, fmt.Errorf("unmarshal turn_context payload: %w", err)
+			return CodexEvent{}, fmt.Errorf("unmarshal turn_context payload: %w", err)
 		}
 		event.PayloadType = "turn_context"
 

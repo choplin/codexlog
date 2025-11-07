@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"agentlog/internal/codex"
 	"agentlog/internal/model"
 )
 
@@ -19,13 +20,13 @@ func TestBuildViewFiltersDefaults(t *testing.T) {
 	if filters.entryTypes == nil || len(filters.entryTypes) != 1 {
 		t.Fatalf("expected default entry type filter with single value, got %#v", filters.entryTypes)
 	}
-	if _, ok := filters.entryTypes[model.EntryTypeResponseItem]; !ok {
+	if _, ok := filters.entryTypes[codex.EntryTypeResponseItem]; !ok {
 		t.Fatalf("default entry type should include response_item")
 	}
 	if filters.responseItemTypes == nil || len(filters.responseItemTypes) != 1 {
 		t.Fatalf("expected default response type filter with single value, got %#v", filters.responseItemTypes)
 	}
-	if _, ok := filters.responseItemTypes[model.ResponseItemTypeMessage]; !ok {
+	if _, ok := filters.responseItemTypes[codex.ResponseItemTypeMessage]; !ok {
 		t.Fatalf("default response type should include message")
 	}
 	if filters.payloadRoles == nil || len(filters.payloadRoles) != 2 {
@@ -35,25 +36,25 @@ func TestBuildViewFiltersDefaults(t *testing.T) {
 
 func TestEventMatchesFilters(t *testing.T) {
 	filters := viewFilters{
-		entryTypes: map[model.EntryType]struct{}{
-			model.EntryTypeResponseItem: {},
+		entryTypes: map[codex.EntryType]struct{}{
+			codex.EntryTypeResponseItem: {},
 		},
-		payloadRoles: map[model.PayloadRole]struct{}{
-			model.PayloadRoleAssistant: {},
+		payloadRoles: map[codex.PayloadRole]struct{}{
+			codex.PayloadRoleAssistant: {},
 		},
 	}
 
-	event := model.Event{Kind: model.EntryTypeResponseItem, Role: model.PayloadRoleAssistant}
+	event := codex.CodexEvent{Kind: codex.EntryTypeResponseItem, Role: codex.PayloadRoleAssistant}
 	if !eventMatchesFilters(event, filters) {
 		t.Fatalf("expected event to match filters")
 	}
 
-	event.Role = model.PayloadRoleUser
+	event.Role = codex.PayloadRoleUser
 	if eventMatchesFilters(event, filters) {
 		t.Fatalf("unexpected match for user role")
 	}
 
-	event.Kind = model.EntryTypeSessionMeta
+	event.Kind = codex.EntryTypeSessionMeta
 	if eventMatchesFilters(event, filters) {
 		t.Fatalf("session_meta should be filtered out")
 	}
@@ -66,19 +67,19 @@ func TestParsePayloadRoleArgUnknown(t *testing.T) {
 }
 
 func TestRenderChatLinesAlignment(t *testing.T) {
-	events := []model.Event{
+	events := []codex.CodexEvent{
 		{
-			Role:      model.PayloadRoleUser,
+			Role:      codex.PayloadRoleUser,
 			Timestamp: time.Date(2025, 10, 27, 12, 0, 0, 0, time.UTC),
 			Content: []model.ContentBlock{{Type: "text", Text: "hello there"}},
 		},
 		{
-			Role:      model.PayloadRoleAssistant,
+			Role:      codex.PayloadRoleAssistant,
 			Timestamp: time.Date(2025, 10, 27, 12, 0, 5, 0, time.UTC),
 			Content: []model.ContentBlock{{Type: "text", Text: "hi, how can I help you today?"}},
 		},
 		{
-			Role:      model.PayloadRoleTool,
+			Role:      codex.PayloadRoleTool,
 			Timestamp: time.Date(2025, 10, 27, 12, 0, 10, 0, time.UTC),
 			Content: []model.ContentBlock{{Type: "json", Text: `{"result":"ok"}`}},
 		},

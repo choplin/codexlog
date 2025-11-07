@@ -9,12 +9,12 @@ import (
 	"unicode/utf8"
 
 	"agentlog/internal/format"
-	"agentlog/internal/model"
+	"agentlog/internal/codex"
 
 	"github.com/mattn/go-runewidth"
 )
 
-func renderChatTranscript(events []model.Event, width int, useColor bool) []string {
+func renderChatTranscript(events []codex.CodexEvent, width int, useColor bool) []string {
 	if width <= 0 {
 		width = 80
 	}
@@ -30,7 +30,7 @@ func renderChatTranscript(events []model.Event, width int, useColor bool) []stri
 	return lines
 }
 
-func renderChatBubble(event model.Event, totalWidth int, padding int, useColor bool) []string {
+func renderChatBubble(event codex.CodexEvent, totalWidth int, padding int, useColor bool) []string {
 	displayRole := strings.ToLower(roleLabel(event))
 	bodyLines := format.RenderEventLines(event, 0)
 
@@ -108,7 +108,7 @@ func chatHeader(role string, ts time.Time) (header string, label string, timeTex
 	return fmt.Sprintf("%s · %s", label, timeText), label, timeText
 }
 
-func roleLabel(event model.Event) string {
+func roleLabel(event codex.CodexEvent) string {
 	if event.Role != "" {
 		role := string(event.Role)
 		// For response_item, show the specific type
@@ -133,7 +133,7 @@ func roleLabel(event model.Event) string {
 
 // extractRawRole returns the base role/kind for alignment and color purposes,
 // without the payload type suffix.
-func extractRawRole(event model.Event) string {
+func extractRawRole(event codex.CodexEvent) string {
 	if event.Role != "" {
 		return string(event.Role)
 	}
@@ -154,12 +154,12 @@ func alignmentForRole(role string) string {
 	}
 
 	// Then check for role-based alignment
-	switch model.PayloadRole(role) {
-	case model.PayloadRoleAssistant:
+	switch codex.PayloadRole(role) {
+	case codex.PayloadRoleAssistant:
 		return "left"
-	case model.PayloadRoleTool, model.PayloadRoleSystem:
+	case codex.PayloadRoleTool, codex.PayloadRoleSystem:
 		return "center"
-	case model.PayloadRoleUser:
+	case codex.PayloadRoleUser:
 		return "right"
 	default:
 		// Unknown types default to left

@@ -5,13 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"agentlog/internal/codex"
 	"agentlog/internal/model"
 )
 
 func TestRenderEventLines_Text(t *testing.T) {
-	event := model.Event{
-		Kind: model.EntryTypeResponseItem,
-		Role: model.PayloadRoleAssistant,
+	event := codex.CodexEvent{
+		Kind: codex.EntryTypeResponseItem,
+		Role: codex.PayloadRoleAssistant,
 		Content: []model.ContentBlock{
 			{Type: "text", Text: "one two three four five six"},
 		},
@@ -27,8 +28,8 @@ func TestRenderEventLines_Text(t *testing.T) {
 }
 
 func TestRenderEventLines_JSON(t *testing.T) {
-	event := model.Event{
-		Kind:      model.EntryType("event_msg"),
+	event := codex.CodexEvent{
+		Kind:      codex.EntryType("event_msg"),
 		Timestamp: time.Date(2025, 10, 25, 12, 0, 0, 0, time.UTC),
 		Content: []model.ContentBlock{
 			{Type: "json", Text: `{"foo":1,"bar":{"baz":2}}`},

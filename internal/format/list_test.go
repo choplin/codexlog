@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"agentlog/internal/model"
+	"agentlog/internal/codex"
 )
 
-func sampleSummaries() []model.SessionSummary {
-	return []model.SessionSummary{
+func sampleSummaries() []codex.CodexSessionSummary {
+	return []codex.CodexSessionSummary{
 		{
 			ID:              "session-a",
 			CWD:             "/tmp/project",

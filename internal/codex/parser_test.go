@@ -1,11 +1,9 @@
-package parser
+package codex
 
 import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"agentlog/internal/model"
 )
 
 func fixturePath(parts ...string) string {
@@ -54,9 +52,9 @@ func TestFirstUserSummary(t *testing.T) {
 func TestIterateEvents_Filtered(t *testing.T) {
 	path := fixturePath("sample-simple.jsonl")
 
-	var events []model.PayloadRole
-	err := IterateEvents(path, func(evt model.Event) error {
-		if evt.Kind == model.EntryTypeResponseItem {
+	var events []PayloadRole
+	err := IterateEvents(path, func(evt CodexEvent) error {
+		if evt.Kind == EntryTypeResponseItem {
 			events = append(events, evt.Role)
 		}
 		return nil

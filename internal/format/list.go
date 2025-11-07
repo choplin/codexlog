@@ -10,11 +10,11 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 
-	"agentlog/internal/model"
+	"agentlog/internal/codex"
 )
 
 // WriteSummaries writes session summaries to w in the requested format.
-func WriteSummaries(w io.Writer, items []model.SessionSummary, includeHeader bool, format string) error {
+func WriteSummaries(w io.Writer, items []codex.CodexSessionSummary, includeHeader bool, format string) error {
 	format = strings.ToLower(format)
 	switch format {
 	case "", "table":
@@ -30,7 +30,7 @@ func WriteSummaries(w io.Writer, items []model.SessionSummary, includeHeader boo
 	}
 }
 
-func writeSummariesPlain(w io.Writer, items []model.SessionSummary, includeHeader bool) error {
+func writeSummariesPlain(w io.Writer, items []codex.CodexSessionSummary, includeHeader bool) error {
 	if includeHeader {
 		if _, err := fmt.Fprintln(w, "timestamp\tsession_id\tcwd\tduration\tmessage_count\tsummary"); err != nil {
 			return err
@@ -54,13 +54,13 @@ func writeSummariesPlain(w io.Writer, items []model.SessionSummary, includeHeade
 	return nil
 }
 
-func writeSummariesJSON(w io.Writer, items []model.SessionSummary) error {
+func writeSummariesJSON(w io.Writer, items []codex.CodexSessionSummary) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(items)
 }
 
-func writeSummariesJSONL(w io.Writer, items []model.SessionSummary) error {
+func writeSummariesJSONL(w io.Writer, items []codex.CodexSessionSummary) error {
 	enc := json.NewEncoder(w)
 	for _, item := range items {
 		if err := enc.Encode(item); err != nil {
@@ -74,7 +74,7 @@ func escapeNewlines(text string) string {
 	return strings.ReplaceAll(text, "\n", "\\n")
 }
 
-func writeSummariesTable(w io.Writer, items []model.SessionSummary, includeHeader bool) error {
+func writeSummariesTable(w io.Writer, items []codex.CodexSessionSummary, includeHeader bool) error {
 	tw := table.NewWriter()
 	tw.SetOutputMirror(w)
 	tw.SetStyle(table.StyleRounded)

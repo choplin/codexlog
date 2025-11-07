@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"agentlog/internal/codex"
 	"agentlog/internal/format"
-	"agentlog/internal/parser"
 	"agentlog/internal/store"
 	"agentlog/internal/view"
 
@@ -235,12 +235,12 @@ func newInfoCmd() *cobra.Command {
 				return err
 			}
 
-			meta, err := parser.ReadSessionMeta(path)
+			meta, err := codex.ReadSessionMeta(path)
 			if err != nil {
 				return err
 			}
 
-			summary, count, lastTimestamp, err := parser.FirstUserSummary(path)
+			summary, count, lastTimestamp, err := codex.FirstUserSummary(path)
 			if err != nil {
 				return err
 			}
