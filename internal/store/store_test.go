@@ -1,6 +1,7 @@
 package store
 
 import (
+	"agentlog/internal/codex"
 	"path/filepath"
 	"testing"
 	"time"
@@ -8,8 +9,9 @@ import (
 
 func TestListSessions(t *testing.T) {
 	root := filepath.Join("..", "..", "testdata", "sessions")
+	parser := &codex.CodexParser{}
 
-	res, err := ListSessions(ListOptions{Root: root, MaxSummary: 80})
+	res, err := ListSessions(parser, ListOptions{Root: root, MaxSummary: 80})
 	if err != nil {
 		t.Fatalf("ListSessions returned error: %v", err)
 	}
@@ -21,7 +23,7 @@ func TestListSessions(t *testing.T) {
 	// Both sessions have same timestamp, order may vary
 	ids := map[string]bool{}
 	for _, s := range res.Summaries {
-		ids[s.ID] = true
+		ids[s.GetID()] = true
 	}
 
 	if !ids["test-full-session"] {
@@ -39,9 +41,10 @@ func TestListSessions(t *testing.T) {
 
 func TestListSessionsFilters(t *testing.T) {
 	root := filepath.Join("..", "..", "testdata", "sessions")
+	parser := &codex.CodexParser{}
 	after := time.Date(2025, 11, 1, 0, 0, 0, 0, time.UTC)
 
-	res, err := ListSessions(ListOptions{Root: root, After: &after})
+	res, err := ListSessions(parser, ListOptions{Root: root, After: &after})
 	if err != nil {
 		t.Fatalf("ListSessions returned error: %v", err)
 	}
@@ -50,14 +53,15 @@ func TestListSessionsFilters(t *testing.T) {
 		t.Fatalf("expected 2 summaries after 2025-11-01, got %d", len(res.Summaries))
 	}
 
-	if res.Summaries[0].DurationSeconds == 0 {
+	if res.Summaries[0].GetDurationSeconds() == 0 {
 		t.Fatalf("expected duration to be populated")
 	}
 }
 
 func TestFindSessionPath(t *testing.T) {
 	root := filepath.Join("..", "..", "testdata", "sessions")
-	path, err := FindSessionPath(root, "test-simple-session")
+	parser := &codex.CodexParser{}
+	path, err := FindSessionPath(parser, root, "test-simple-session")
 	if err != nil {
 		t.Fatalf("FindSessionPath returned error: %v", err)
 	}
@@ -70,7 +74,8 @@ func TestFindSessionPath(t *testing.T) {
 
 func TestListSessionsExactCWD(t *testing.T) {
 	root := filepath.Join("..", "..", "testdata", "sessions")
-	res, err := ListSessions(ListOptions{Root: root, CWD: "/Users/test/project", ExactCWD: true})
+	parser := &codex.CodexParser{}
+	res, err := ListSessions(parser, ListOptions{Root: root, CWD: "/Users/test/project", ExactCWD: true})
 	if err != nil {
 		t.Fatalf("ListSessions returned error: %v", err)
 	}
@@ -80,10 +85,10 @@ func TestListSessionsExactCWD(t *testing.T) {
 	}
 
 	summary := res.Summaries[0]
-	if summary.ID != "test-full-session" {
-		t.Fatalf("unexpected session id: %s", summary.ID)
+	if summary.GetID() != "test-full-session" {
+		t.Fatalf("unexpected session id: %s", summary.GetID())
 	}
-	if summary.DurationSeconds == 0 {
+	if summary.GetDurationSeconds() == 0 {
 		t.Fatalf("expected duration to be populated")
 	}
 }

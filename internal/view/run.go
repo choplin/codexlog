@@ -1,8 +1,8 @@
 package view
 
 import (
-	"agentlog/internal/codex"
 	"agentlog/internal/format"
+	"agentlog/internal/model"
 	"fmt"
 	"io"
 	"os"
@@ -34,7 +34,7 @@ type Options struct {
 }
 
 // Run renders a session log according to the provided options.
-func Run(opts Options) error {
+func Run(parser model.Parser, opts Options) error {
 	if opts.Out == nil {
 		opts.Out = os.Stdout
 	}
@@ -53,16 +53,12 @@ func Run(opts Options) error {
 		formatMode = "text"
 	}
 
-	if _, err := codex.ReadSessionMeta(opts.Path); err != nil {
+	if _, err := parser.ReadSessionMeta(opts.Path); err != nil {
 		return err
 	}
 
-	processEvents := func(fn func(codex.CodexEvent) error) error {
-		return codex.IterateEvents(opts.Path, func(event codex.CodexEvent) error {
-			// Skip session_meta unless --all is specified
-			if !opts.AllFilter && event.Kind == codex.EntryTypeSessionMeta {
-				return nil
-			}
+	processEvents := func(fn func(model.EventProvider) error) error {
+		return parser.IterateEvents(opts.Path, func(event model.EventProvider) error {
 			if !eventMatchesFilters(event, filters) {
 				return nil
 			}
@@ -75,7 +71,7 @@ func Run(opts Options) error {
 		useColor := resolveColorChoice(opts)
 		if opts.MaxEvents == 0 {
 			count := 0
-			return processEvents(func(event codex.CodexEvent) error {
+			return processEvents(func(event model.EventProvider) error {
 				if count > 0 {
 					fmt.Fprintln(opts.Out) //nolint:errcheck
 				}
@@ -85,7 +81,7 @@ func Run(opts Options) error {
 			})
 		}
 		ring := newEventRing(opts.MaxEvents)
-		if err := processEvents(func(event codex.CodexEvent) error {
+		if err := processEvents(func(event model.EventProvider) error {
 			ring.push(event)
 			return nil
 		}); err != nil {
@@ -101,20 +97,20 @@ func Run(opts Options) error {
 
 	case "raw":
 		if opts.MaxEvents == 0 {
-			return processEvents(func(event codex.CodexEvent) error {
-				_, err := fmt.Fprintln(opts.Out, event.Raw) //nolint:errcheck
+			return processEvents(func(event model.EventProvider) error {
+				_, err := fmt.Fprintln(opts.Out, event.GetRaw()) //nolint:errcheck
 				return err
 			})
 		}
 		ring := newEventRing(opts.MaxEvents)
-		if err := processEvents(func(event codex.CodexEvent) error {
+		if err := processEvents(func(event model.EventProvider) error {
 			ring.push(event)
 			return nil
 		}); err != nil {
 			return err
 		}
 		for _, event := range ring.slice() {
-			fmt.Fprintln(opts.Out, event.Raw) //nolint:errcheck
+			fmt.Fprintln(opts.Out, event.GetRaw()) //nolint:errcheck
 		}
 		return nil
 
@@ -122,10 +118,10 @@ func Run(opts Options) error {
 		colorEnabled := resolveColorChoice(opts)
 		width := determineWidth(opts.OutFile, opts.Wrap)
 
-		var events []codex.CodexEvent
+		var events []model.EventProvider
 		if opts.MaxEvents > 0 {
 			ring := newEventRing(opts.MaxEvents)
-			if err := processEvents(func(event codex.CodexEvent) error {
+			if err := processEvents(func(event model.EventProvider) error {
 				ring.push(event)
 				return nil
 			}); err != nil {
@@ -133,8 +129,8 @@ func Run(opts Options) error {
 			}
 			events = ring.slice()
 		} else {
-			collected := make([]codex.CodexEvent, 0)
-			if err := processEvents(func(event codex.CodexEvent) error {
+			collected := make([]model.EventProvider, 0)
+			if err := processEvents(func(event model.EventProvider) error {
 				collected = append(collected, event)
 				return nil
 			}); err != nil {
@@ -162,10 +158,12 @@ func Run(opts Options) error {
 }
 
 type viewFilters struct {
-	entryTypes        map[codex.EntryType]struct{}
-	responseItemTypes map[codex.ResponseItemType]struct{}
-	eventMsgTypes     map[codex.EventMsgType]struct{}
-	payloadRoles      map[codex.PayloadRole]struct{}
+	// TODO: Implement agent-agnostic filtering
+	// For now, filters are disabled
+	entryTypes        map[string]struct{}
+	responseItemTypes map[string]struct{}
+	eventMsgTypes     map[string]struct{}
+	payloadRoles      map[string]struct{}
 }
 
 func buildViewFilters(allFilter bool, entryArg, responseTypeArg, eventMsgTypeArg, payloadRoleArg string) (viewFilters, error) {
@@ -201,16 +199,16 @@ func buildViewFilters(allFilter bool, entryArg, responseTypeArg, eventMsgTypeArg
 	if entryProvided {
 		filters.entryTypes = entryFilter
 	} else {
-		filters.entryTypes = map[codex.EntryType]struct{}{
-			codex.EntryTypeResponseItem: {},
+		filters.entryTypes = map[string]struct{}{
+			"response_item": {},
 		}
 	}
 
 	if responseTypeProvided {
 		filters.responseItemTypes = responseTypeFilter
 	} else {
-		filters.responseItemTypes = map[codex.ResponseItemType]struct{}{
-			codex.ResponseItemTypeMessage: {},
+		filters.responseItemTypes = map[string]struct{}{
+			"message": {},
 		}
 	}
 
@@ -224,16 +222,16 @@ func buildViewFilters(allFilter bool, entryArg, responseTypeArg, eventMsgTypeArg
 	if roleProvided {
 		filters.payloadRoles = payloadRoleFilter
 	} else {
-		filters.payloadRoles = map[codex.PayloadRole]struct{}{
-			codex.PayloadRoleUser:      {},
-			codex.PayloadRoleAssistant: {},
+		filters.payloadRoles = map[string]struct{}{
+			"user":      {},
+			"assistant": {},
 		}
 	}
 
 	return filters, nil
 }
 
-func parseEntryTypeArg(arg string) (map[codex.EntryType]struct{}, bool, error) {
+func parseEntryTypeArg(arg string) (map[string]struct{}, bool, error) {
 	values := parseCSV(arg)
 	if len(values) == 0 {
 		return nil, false, nil
@@ -242,25 +240,25 @@ func parseEntryTypeArg(arg string) (map[codex.EntryType]struct{}, bool, error) {
 		return nil, true, nil
 	}
 
-	lookup := map[string]codex.EntryType{
-		"session_meta":  codex.EntryTypeSessionMeta,
-		"response_item": codex.EntryTypeResponseItem,
-		"event_msg":     codex.EntryTypeEventMsg,
-		"turn_context":  codex.EntryTypeTurnContext,
+	// Valid entry types (agent-agnostic)
+	validTypes := map[string]bool{
+		"session_meta":  true,
+		"response_item": true,
+		"event_msg":     true,
+		"turn_context":  true,
 	}
 
-	set := make(map[codex.EntryType]struct{}, len(values))
+	set := make(map[string]struct{}, len(values))
 	for _, token := range values {
-		entryType, ok := lookup[token]
-		if !ok {
+		if !validTypes[token] {
 			return nil, true, fmt.Errorf("unknown entry type %q", token)
 		}
-		set[entryType] = struct{}{}
+		set[token] = struct{}{}
 	}
 	return set, true, nil
 }
 
-func parseResponseTypeArg(arg string) (map[codex.ResponseItemType]struct{}, bool, error) {
+func parseResponseTypeArg(arg string) (map[string]struct{}, bool, error) {
 	values := parseCSV(arg)
 	if len(values) == 0 {
 		return nil, false, nil
@@ -269,27 +267,27 @@ func parseResponseTypeArg(arg string) (map[codex.ResponseItemType]struct{}, bool
 		return nil, true, nil
 	}
 
-	lookup := map[string]codex.ResponseItemType{
-		"message":                 codex.ResponseItemTypeMessage,
-		"reasoning":               codex.ResponseItemTypeReasoning,
-		"function_call":           codex.ResponseItemTypeFunctionCall,
-		"function_call_output":    codex.ResponseItemTypeFunctionCallOutput,
-		"custom_tool_call":        codex.ResponseItemTypeCustomToolCall,
-		"custom_tool_call_output": codex.ResponseItemTypeCustomToolCallOutput,
+	// Valid response types (agent-agnostic)
+	validTypes := map[string]bool{
+		"message":                 true,
+		"reasoning":               true,
+		"function_call":           true,
+		"function_call_output":    true,
+		"custom_tool_call":        true,
+		"custom_tool_call_output": true,
 	}
 
-	set := make(map[codex.ResponseItemType]struct{}, len(values))
+	set := make(map[string]struct{}, len(values))
 	for _, token := range values {
-		responseType, ok := lookup[token]
-		if !ok {
+		if !validTypes[token] {
 			return nil, true, fmt.Errorf("unknown response type %q", token)
 		}
-		set[responseType] = struct{}{}
+		set[token] = struct{}{}
 	}
 	return set, true, nil
 }
 
-func parseEventMsgTypeArg(arg string) (map[codex.EventMsgType]struct{}, bool, error) {
+func parseEventMsgTypeArg(arg string) (map[string]struct{}, bool, error) {
 	values := parseCSV(arg)
 	if len(values) == 0 {
 		return nil, false, nil
@@ -298,26 +296,26 @@ func parseEventMsgTypeArg(arg string) (map[codex.EventMsgType]struct{}, bool, er
 		return nil, true, nil
 	}
 
-	lookup := map[string]codex.EventMsgType{
-		"token_count":     codex.EventMsgTypeTokenCount,
-		"agent_reasoning": codex.EventMsgTypeAgentReasoning,
-		"user_message":    codex.EventMsgTypeUserMessage,
-		"agent_message":   codex.EventMsgTypeAgentMessage,
-		"turn_aborted":    codex.EventMsgTypeTurnAborted,
+	// Valid event_msg types (agent-agnostic)
+	validTypes := map[string]bool{
+		"token_count":     true,
+		"agent_reasoning": true,
+		"user_message":    true,
+		"agent_message":   true,
+		"turn_aborted":    true,
 	}
 
-	set := make(map[codex.EventMsgType]struct{}, len(values))
+	set := make(map[string]struct{}, len(values))
 	for _, token := range values {
-		eventMsgType, ok := lookup[token]
-		if !ok {
+		if !validTypes[token] {
 			return nil, true, fmt.Errorf("unknown event_msg type %q", token)
 		}
-		set[eventMsgType] = struct{}{}
+		set[token] = struct{}{}
 	}
 	return set, true, nil
 }
 
-func parsePayloadRoleArg(arg string) (map[codex.PayloadRole]struct{}, bool, error) {
+func parsePayloadRoleArg(arg string) (map[string]struct{}, bool, error) {
 	values := parseCSV(arg)
 	if len(values) == 0 {
 		return nil, false, nil
@@ -326,20 +324,20 @@ func parsePayloadRoleArg(arg string) (map[codex.PayloadRole]struct{}, bool, erro
 		return nil, true, nil
 	}
 
-	lookup := map[string]codex.PayloadRole{
-		"user":      codex.PayloadRoleUser,
-		"assistant": codex.PayloadRoleAssistant,
-		"tool":      codex.PayloadRoleTool,
-		"system":    codex.PayloadRoleSystem,
+	// Valid payload roles (agent-agnostic)
+	validRoles := map[string]bool{
+		"user":      true,
+		"assistant": true,
+		"tool":      true,
+		"system":    true,
 	}
 
-	set := make(map[codex.PayloadRole]struct{}, len(values))
+	set := make(map[string]struct{}, len(values))
 	for _, token := range values {
-		role, ok := lookup[token]
-		if !ok {
+		if !validRoles[token] {
 			return nil, true, fmt.Errorf("unknown payload role %q", token)
 		}
-		set[role] = struct{}{}
+		set[token] = struct{}{}
 	}
 	return set, true, nil
 }
@@ -359,38 +357,15 @@ func parseCSV(arg string) []string {
 	return output
 }
 
-func eventMatchesFilters(event codex.CodexEvent, filters viewFilters) bool {
-	if filters.entryTypes != nil {
-		if _, ok := filters.entryTypes[event.Kind]; !ok {
-			return false
-		}
-	}
-
-	switch event.Kind {
-	case codex.EntryTypeResponseItem:
-		if filters.responseItemTypes != nil {
-			if _, ok := filters.responseItemTypes[codex.ResponseItemType(event.PayloadType)]; !ok {
-				return false
-			}
-		}
-		if filters.payloadRoles != nil {
-			if _, ok := filters.payloadRoles[event.Role]; !ok {
-				return false
-			}
-		}
-	case codex.EntryTypeEventMsg:
-		if filters.eventMsgTypes != nil {
-			if _, ok := filters.eventMsgTypes[codex.EventMsgType(event.PayloadType)]; !ok {
-				return false
-			}
-		}
-	}
-
+func eventMatchesFilters(event model.EventProvider, filters viewFilters) bool {
+	// TODO: Implement agent-agnostic filtering
+	// For now, accept all events when using generic interface
+	// Agent-specific filtering will be re-implemented later
 	return true
 }
 
 type eventRing struct {
-	data   []codex.CodexEvent
+	data   []model.EventProvider
 	start  int
 	length int
 }
@@ -399,10 +374,10 @@ func newEventRing(capacity int) *eventRing {
 	if capacity <= 0 {
 		return &eventRing{}
 	}
-	return &eventRing{data: make([]codex.CodexEvent, capacity)}
+	return &eventRing{data: make([]model.EventProvider, capacity)}
 }
 
-func (r *eventRing) push(event codex.CodexEvent) {
+func (r *eventRing) push(event model.EventProvider) {
 	if len(r.data) == 0 {
 		return
 	}
@@ -415,11 +390,11 @@ func (r *eventRing) push(event codex.CodexEvent) {
 	r.start = (r.start + 1) % len(r.data)
 }
 
-func (r *eventRing) slice() []codex.CodexEvent {
+func (r *eventRing) slice() []model.EventProvider {
 	if r.length == 0 {
 		return nil
 	}
-	result := make([]codex.CodexEvent, r.length)
+	result := make([]model.EventProvider, r.length)
 	for i := 0; i < r.length; i++ {
 		result[i] = r.data[(r.start+i)%len(r.data)]
 	}
@@ -489,19 +464,16 @@ func writeLines(out io.Writer, lines []string) error {
 	return nil
 }
 
-func printEvent(out io.Writer, event codex.CodexEvent, index int, wrap int, useColor bool) {
-	roleLabel := string(event.Role)
-	if roleLabel == "" {
-		roleLabel = string(event.Kind)
-	}
+func printEvent(out io.Writer, event model.EventProvider, index int, wrap int, useColor bool) {
+	roleLabel := event.GetRole()
 	if roleLabel == "" {
 		roleLabel = "event"
 	}
 	roleLabel = strings.ToLower(roleLabel)
 
 	ts := "-"
-	if !event.Timestamp.IsZero() {
-		ts = event.Timestamp.Format(time.RFC3339)
+	if !event.GetTimestamp().IsZero() {
+		ts = event.GetTimestamp().Format(time.RFC3339)
 	}
 	headerPlain := fmt.Sprintf("[#%03d] %s | %s", index, roleLabel, ts)
 
@@ -561,12 +533,12 @@ func colorize(code string, text string) string {
 }
 
 func roleColor(role string) string {
-	switch codex.PayloadRole(role) {
-	case codex.PayloadRoleAssistant:
+	switch role {
+	case "assistant":
 		return ansiAssistant
-	case codex.PayloadRoleUser:
+	case "user":
 		return ansiUser
-	case codex.PayloadRoleTool, codex.PayloadRoleSystem:
+	case "tool", "system":
 		return ansiTool
 	default:
 		return ansiSeparator

@@ -2,14 +2,15 @@ package format
 
 import (
 	"agentlog/internal/codex"
+	"agentlog/internal/model"
 	"bytes"
 	"strings"
 	"testing"
 	"time"
 )
 
-func sampleSummaries() []codex.CodexSessionSummary {
-	return []codex.CodexSessionSummary{
+func sampleSummaries() []model.SessionSummaryProvider {
+	codexSummaries := []codex.CodexSessionSummary{
 		{
 			ID:              "session-a",
 			CWD:             "/tmp/project",
@@ -27,6 +28,12 @@ func sampleSummaries() []codex.CodexSessionSummary {
 			DurationSeconds: 45,
 		},
 	}
+	// Convert to interface slice
+	result := make([]model.SessionSummaryProvider, len(codexSummaries))
+	for i := range codexSummaries {
+		result[i] = &codexSummaries[i]
+	}
+	return result
 }
 
 func TestWriteSummariesPlain(t *testing.T) {
@@ -86,7 +93,8 @@ func TestWriteSummariesJSONL(t *testing.T) {
 	if len(lines) != len(items) {
 		t.Fatalf("expected %d lines, got %d", len(items), len(lines))
 	}
-	if !strings.Contains(lines[0], "\"session-a\"") || !strings.Contains(lines[0], "\"DurationSeconds\":90") {
+	// Check for new field names (duration_seconds, not DurationSeconds)
+	if !strings.Contains(lines[0], "\"session-a\"") || !strings.Contains(lines[0], "\"duration_seconds\":90") {
 		t.Fatalf("first jsonl line unexpected: %s", lines[0])
 	}
 }

@@ -11,8 +11,41 @@ import (
 	"time"
 )
 
+// CodexParser implements the model.Parser interface for Codex CLI logs.
+type CodexParser struct{}
+
+// Ensure CodexParser implements model.Parser
+var _ model.Parser = (*CodexParser)(nil)
+
+func init() {
+	model.RegisterCodexParser(func() model.Parser {
+		return &CodexParser{}
+	})
+}
+
 // ErrSessionMetaNotFound is returned when a JSONL file lacks session_meta.
 var ErrSessionMetaNotFound = errors.New("session_meta record not found")
+
+// ReadSessionMeta loads metadata from the first session_meta record in path.
+// This is the implementation of model.Parser.ReadSessionMeta.
+func (p *CodexParser) ReadSessionMeta(path string) (model.SessionMetaProvider, error) {
+	return ReadSessionMeta(path)
+}
+
+// FirstUserSummary extracts the first user message from the session.
+// This is the implementation of model.Parser.FirstUserSummary.
+func (p *CodexParser) FirstUserSummary(path string) (string, error) {
+	summary, _, _, err := FirstUserSummary(path)
+	return summary, err
+}
+
+// IterateEvents iterates through all events in the session.
+// This is the implementation of model.Parser.IterateEvents.
+func (p *CodexParser) IterateEvents(path string, fn func(model.EventProvider) error) error {
+	return IterateEvents(path, func(event CodexEvent) error {
+		return fn(&event)
+	})
+}
 
 // ReadSessionMeta loads metadata from the first session_meta record in path.
 func ReadSessionMeta(path string) (*CodexSessionMeta, error) {

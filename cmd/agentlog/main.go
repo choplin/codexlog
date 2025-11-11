@@ -2,8 +2,11 @@
 package main
 
 import (
-	"agentlog/internal/codex"
+	// Import both agent packages to trigger init() registration
+	_ "agentlog/internal/claude"
+	_ "agentlog/internal/codex"
 	"agentlog/internal/format"
+	"agentlog/internal/model"
 	"agentlog/internal/store"
 	"agentlog/internal/view"
 	"encoding/json"
@@ -20,6 +23,10 @@ import (
 
 var version = "dev"
 
+var (
+	agentType string
+)
+
 var rootCmd = &cobra.Command{
 	Use:     "agentlog",
 	Short:   "Browse, search, and analyze AI agent conversation logs",
@@ -27,9 +34,40 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringVar(&agentType, "agent", "",
+		"Agent type: 'codex' or 'claude' (env: AGENTLOG_AGENT, default: claude)")
+
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newViewCmd())
 	rootCmd.AddCommand(newInfoCmd())
+}
+
+// getAgentType returns the agent type from flag, environment variable, or default.
+func getAgentType() model.AgentType {
+	if agentType != "" {
+		return model.AgentType(agentType)
+	}
+	if env := os.Getenv("AGENTLOG_AGENT"); env != "" {
+		return model.AgentType(env)
+	}
+	return model.AgentClaude
+}
+
+// defaultSessionsDir returns the default sessions directory for the given agent type.
+func defaultSessionsDir(agentType model.AgentType) string {
+	if dir := os.Getenv("AGENTLOG_SESSIONS_DIR"); dir != "" {
+		return dir
+	}
+
+	home, _ := os.UserHomeDir()
+	switch agentType {
+	case model.AgentCodex:
+		return filepath.Join(home, ".codex", "sessions")
+	case model.AgentClaude:
+		return filepath.Join(home, ".claude", "projects")
+	default:
+		return filepath.Join(home, ".claude", "projects")
+	}
 }
 
 func main() {
@@ -58,6 +96,18 @@ func newListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if all && cwd != "" {
 				return errors.New("--cwd cannot be used with --all")
+			}
+
+			// Get agent type and create parser
+			agent := getAgentType()
+			parser, err := model.NewParser(agent)
+			if err != nil {
+				return fmt.Errorf("create parser: %w", err)
+			}
+
+			// Use default sessions dir if not provided
+			if sessionsDir == "" {
+				sessionsDir = defaultSessionsDir(agent)
 			}
 
 			var after, before *time.Time
@@ -99,7 +149,7 @@ func newListCmd() *cobra.Command {
 				opts.CWD = cwd
 			}
 
-			result, err := store.ListSessions(opts)
+			result, err := store.ListSessions(parser, opts)
 			if err != nil {
 				return err
 			}
@@ -127,7 +177,7 @@ func newListCmd() *cobra.Command {
 	flags.StringVar(&formatFlag, "format", "table", "output format: table, plain, json, or jsonl")
 	flags.BoolVar(&noHeader, "no-header", false, "omit header row for plain output")
 	flags.IntVar(&summaryWidth, "summary-width", 160, "maximum characters included in the summary column")
-	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
+	flags.StringVar(&sessionsDir, "sessions-dir", "", "override the sessions directory (default: agent-specific)")
 
 	return cmd
 }
@@ -153,7 +203,19 @@ func newViewCmd() *cobra.Command {
 		Short: "Render a session transcript",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := resolveSessionPath(args[0], sessionsDir)
+			// Get agent type and create parser
+			agent := getAgentType()
+			parser, err := model.NewParser(agent)
+			if err != nil {
+				return fmt.Errorf("create parser: %w", err)
+			}
+
+			// Use default sessions dir if not provided
+			if sessionsDir == "" {
+				sessionsDir = defaultSessionsDir(agent)
+			}
+
+			path, err := resolveSessionPath(parser, args[0], sessionsDir)
 			if err != nil {
 				return err
 			}
@@ -169,7 +231,7 @@ func newViewCmd() *cobra.Command {
 			}
 
 			outFile, _ := out.(*os.File)
-			return view.Run(view.Options{
+			return view.Run(parser, view.Options{
 				Path:            path,
 				Format:          formatFlag,
 				Wrap:            wrap,
@@ -197,7 +259,7 @@ func newViewCmd() *cobra.Command {
 	flags.BoolVar(&raw, "raw", false, "output raw JSONL without formatting")
 	flags.IntVar(&wrap, "wrap", 0, "wrap message body at the given column width")
 	flags.IntVar(&maxEvents, "max", 0, "show only the most recent N events (0 means no limit)")
-	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
+	flags.StringVar(&sessionsDir, "sessions-dir", "", "override the sessions directory (default: agent-specific)")
 	flags.StringVar(&formatFlag, "format", "text", "output format: text, chat, or raw")
 	flags.BoolVar(&forceColor, "color", false, "force-enable ANSI colors even when stdout is not a TTY")
 	flags.BoolVar(&forceNoColor, "no-color", false, "disable ANSI colors regardless of terminal detection")
@@ -230,25 +292,51 @@ func newInfoCmd() *cobra.Command {
 		Short: "Show session metadata and file details",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := resolveSessionPath(args[0], sessionsDir)
+			// Get agent type and create parser
+			agent := getAgentType()
+			parser, err := model.NewParser(agent)
+			if err != nil {
+				return fmt.Errorf("create parser: %w", err)
+			}
+
+			// Use default sessions dir if not provided
+			if sessionsDir == "" {
+				sessionsDir = defaultSessionsDir(agent)
+			}
+
+			path, err := resolveSessionPath(parser, args[0], sessionsDir)
 			if err != nil {
 				return err
 			}
 
-			meta, err := codex.ReadSessionMeta(path)
+			meta, err := parser.ReadSessionMeta(path)
 			if err != nil {
 				return err
 			}
 
-			summary, count, lastTimestamp, err := codex.FirstUserSummary(path)
+			summary, err := parser.FirstUserSummary(path)
 			if err != nil {
 				return err
 			}
 
-			if lastTimestamp.IsZero() || lastTimestamp.Before(meta.StartedAt) {
-				lastTimestamp = meta.StartedAt
+			// Count messages and find last timestamp
+			var count int
+			var lastTimestamp time.Time
+			err = parser.IterateEvents(path, func(event model.EventProvider) error {
+				count++
+				if !event.GetTimestamp().IsZero() && event.GetTimestamp().After(lastTimestamp) {
+					lastTimestamp = event.GetTimestamp()
+				}
+				return nil
+			})
+			if err != nil {
+				return err
 			}
-			duration := durationSeconds(meta.StartedAt, lastTimestamp)
+
+			if lastTimestamp.IsZero() || lastTimestamp.Before(meta.GetStartedAt()) {
+				lastTimestamp = meta.GetStartedAt()
+			}
+			duration := durationSeconds(meta.GetStartedAt(), lastTimestamp)
 
 			summaryMode = strings.ToLower(summaryMode)
 			switch summaryMode {
@@ -264,12 +352,10 @@ func newInfoCmd() *cobra.Command {
 			}
 
 			payload := infoPayload{
-				SessionID:       meta.ID,
+				SessionID:       meta.GetID(),
 				JSONLPath:       path,
-				StartedAt:       meta.StartedAt.Format(time.RFC3339),
-				CWD:             meta.CWD,
-				Originator:      meta.Originator,
-				CLIVersion:      meta.CLIVersion,
+				StartedAt:       meta.GetStartedAt().Format(time.RFC3339),
+				CWD:             meta.GetCWD(),
 				MessageCount:    count,
 				DurationSeconds: duration,
 				DurationDisplay: formatDuration(duration),
@@ -294,12 +380,12 @@ func newInfoCmd() *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringVar(&formatFlag, "format", "text", "output format: text or json")
 	flags.StringVar(&summaryMode, "summary", "clip", "summary display: clip or full")
-	flags.StringVar(&sessionsDir, "sessions-dir", defaultSessionsDir(), "override the sessions directory")
+	flags.StringVar(&sessionsDir, "sessions-dir", "", "override the sessions directory (default: agent-specific)")
 
 	return cmd
 }
 
-func resolveSessionPath(arg, root string) (string, error) {
+func resolveSessionPath(parser model.Parser, arg, root string) (string, error) {
 	if arg == "" {
 		return "", errors.New("session identifier is empty")
 	}
@@ -313,10 +399,12 @@ func resolveSessionPath(arg, root string) (string, error) {
 		return candidate, nil
 	}
 
-	return store.FindSessionPath(root, arg)
+	return store.FindSessionPath(parser, root, arg)
 }
 
-func defaultSessionsDir() string {
+// Note: The old defaultSessionsDir() has been replaced by defaultSessionsDir(agentType) above
+
+func oldDefaultSessionsDir() string {
 	if dir := os.Getenv("AGENTLOG_SESSIONS_DIR"); dir != "" {
 		return dir
 	}

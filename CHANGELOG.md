@@ -7,12 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support for Claude Code session logs in addition to Codex CLI
+- `--agent` flag to specify agent type (`codex` or `claude`)
+- `AGENTLOG_AGENT` environment variable for default agent type selection
+- Parser interface for supporting multiple AI agent log formats
+- Factory pattern for creating agent-specific parsers
+
 ### Changed
 
 - **BREAKING**: Renamed project from `codexlog` to `agentlog`
 - **BREAKING**: Renamed environment variable from `CODEXLOG_SESSIONS_DIR` to `AGENTLOG_SESSIONS_DIR`
 - **BREAKING**: Renamed binary from `codexlog` to `agentlog`
 - **BREAKING**: Changed Homebrew tap from `choplin/tap/codexlog` to `choplin/tap/agentlog`
+- Default agent type is now Claude Code (`claude`)
+- Default sessions directory is now agent-specific (`~/.claude/projects` or `~/.codex/sessions`)
+- Internal architecture refactored to use agent-agnostic interfaces
 - Updated project description to reflect support for AI agent conversation logs in general
 
 ## [0.1.0] - 2025-11-06

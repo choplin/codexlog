@@ -2,7 +2,7 @@
 package store
 
 import (
-	"agentlog/internal/codex"
+	"agentlog/internal/model"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -13,6 +13,25 @@ import (
 )
 
 var errStop = errors.New("stop iteration")
+
+// sessionSummary implements model.SessionSummaryProvider.
+type sessionSummary struct {
+	id              string
+	path            string
+	cwd             string
+	startedAt       time.Time
+	summary         string
+	messageCount    int
+	durationSeconds int
+}
+
+func (s *sessionSummary) GetID() string              { return s.id }
+func (s *sessionSummary) GetPath() string            { return s.path }
+func (s *sessionSummary) GetCWD() string             { return s.cwd }
+func (s *sessionSummary) GetStartedAt() time.Time    { return s.startedAt }
+func (s *sessionSummary) GetSummary() string         { return s.summary }
+func (s *sessionSummary) GetMessageCount() int       { return s.messageCount }
+func (s *sessionSummary) GetDurationSeconds() int    { return s.durationSeconds }
 
 // ListOptions controls how sessions are enumerated.
 type ListOptions struct {
@@ -27,12 +46,12 @@ type ListOptions struct {
 
 // ListResult contains session summaries and non-fatal warnings.
 type ListResult struct {
-	Summaries []codex.CodexSessionSummary
+	Summaries []model.SessionSummaryProvider
 	Warnings  []error
 }
 
-// ListSessions enumerates Codex sessions under Root according to options.
-func ListSessions(opts ListOptions) (ListResult, error) {
+// ListSessions enumerates sessions under Root according to options using the provided parser.
+func ListSessions(parser model.Parser, opts ListOptions) (ListResult, error) {
 	root := opts.Root
 	if root == "" {
 		return ListResult{}, errors.New("root directory is required")
@@ -50,30 +69,29 @@ func ListSessions(opts ListOptions) (ListResult, error) {
 			return nil
 		}
 
-		meta, err := codex.ReadSessionMeta(path)
+		meta, err := parser.ReadSessionMeta(path)
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Errorf("parse meta %s: %w", path, err))
 			return nil
 		}
-		meta.Path = path
 
 		if opts.CWD != "" {
 			if opts.ExactCWD {
-				if meta.CWD != opts.CWD {
+				if meta.GetCWD() != opts.CWD {
 					return nil
 				}
-			} else if !strings.HasPrefix(meta.CWD, opts.CWD) {
+			} else if !strings.HasPrefix(meta.GetCWD(), opts.CWD) {
 				return nil
 			}
 		}
-		if opts.After != nil && meta.StartedAt.Before(*opts.After) {
+		if opts.After != nil && meta.GetStartedAt().Before(*opts.After) {
 			return nil
 		}
-		if opts.Before != nil && meta.StartedAt.After(*opts.Before) {
+		if opts.Before != nil && meta.GetStartedAt().After(*opts.Before) {
 			return nil
 		}
 
-		summaryText, count, lastTimestamp, err := codex.FirstUserSummary(path)
+		summaryText, err := parser.FirstUserSummary(path)
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Errorf("extract summary %s: %w", path, err))
 			return nil
@@ -83,22 +101,35 @@ func ListSessions(opts ListOptions) (ListResult, error) {
 			summaryText = truncate(summaryText, opts.MaxSummary)
 		}
 
-		if lastTimestamp.IsZero() || lastTimestamp.Before(meta.StartedAt) {
-			lastTimestamp = meta.StartedAt
+		// Count messages and find last timestamp
+		var count int
+		var lastTimestamp time.Time
+		err = parser.IterateEvents(path, func(event model.EventProvider) error {
+			count++
+			if !event.GetTimestamp().IsZero() && event.GetTimestamp().After(lastTimestamp) {
+				lastTimestamp = event.GetTimestamp()
+			}
+			return nil
+		})
+		if err != nil {
+			result.Warnings = append(result.Warnings, fmt.Errorf("count messages %s: %w", path, err))
+			return nil
 		}
 
-		duration := durationSeconds(meta.StartedAt, lastTimestamp)
+		if lastTimestamp.IsZero() || lastTimestamp.Before(meta.GetStartedAt()) {
+			lastTimestamp = meta.GetStartedAt()
+		}
 
-		result.Summaries = append(result.Summaries, codex.CodexSessionSummary{
-			ID:              meta.ID,
-			Path:            path,
-			CWD:             meta.CWD,
-			Originator:      meta.Originator,
-			CLIVersion:      meta.CLIVersion,
-			StartedAt:       meta.StartedAt,
-			Summary:         summaryText,
-			MessageCount:    count,
-			DurationSeconds: duration,
+		duration := durationSeconds(meta.GetStartedAt(), lastTimestamp)
+
+		result.Summaries = append(result.Summaries, &sessionSummary{
+			id:              meta.GetID(),
+			path:            path,
+			cwd:             meta.GetCWD(),
+			startedAt:       meta.GetStartedAt(),
+			summary:         summaryText,
+			messageCount:    count,
+			durationSeconds: duration,
 		})
 
 		return nil
@@ -108,7 +139,7 @@ func ListSessions(opts ListOptions) (ListResult, error) {
 	}
 
 	sort.Slice(result.Summaries, func(i, j int) bool {
-		return result.Summaries[i].StartedAt.After(result.Summaries[j].StartedAt)
+		return result.Summaries[i].GetStartedAt().After(result.Summaries[j].GetStartedAt())
 	})
 
 	if opts.Limit > 0 && len(result.Summaries) > opts.Limit {
@@ -129,8 +160,8 @@ func truncate(s string, maxLen int) string {
 	return string(runes[:maxLen]) + "…"
 }
 
-// FindSessionPath searches for a session file whose session_meta id matches id.
-func FindSessionPath(root, id string) (string, error) {
+// FindSessionPath searches for a session file whose session id matches id.
+func FindSessionPath(parser model.Parser, root, id string) (string, error) {
 	if root == "" {
 		return "", errors.New("root directory is required")
 	}
@@ -146,11 +177,11 @@ func FindSessionPath(root, id string) (string, error) {
 		if d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
 			return nil
 		}
-		meta, err := codex.ReadSessionMeta(path)
+		meta, err := parser.ReadSessionMeta(path)
 		if err != nil {
 			return nil
 		}
-		if meta.ID == id {
+		if meta.GetID() == id {
 			matched = path
 			return errStop
 		}

@@ -2,7 +2,7 @@
 package format
 
 import (
-	"agentlog/internal/codex"
+	"agentlog/internal/model"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,7 +14,7 @@ import (
 )
 
 // WriteSummaries writes session summaries to w in the requested format.
-func WriteSummaries(w io.Writer, items []codex.CodexSessionSummary, includeHeader bool, format string) error {
+func WriteSummaries(w io.Writer, items []model.SessionSummaryProvider, includeHeader bool, format string) error {
 	format = strings.ToLower(format)
 	switch format {
 	case "", "table":
@@ -30,7 +30,7 @@ func WriteSummaries(w io.Writer, items []codex.CodexSessionSummary, includeHeade
 	}
 }
 
-func writeSummariesPlain(w io.Writer, items []codex.CodexSessionSummary, includeHeader bool) error {
+func writeSummariesPlain(w io.Writer, items []model.SessionSummaryProvider, includeHeader bool) error {
 	if includeHeader {
 		if _, err := fmt.Fprintln(w, "timestamp\tsession_id\tcwd\tduration\tmessage_count\tsummary"); err != nil {
 			return err
@@ -40,12 +40,12 @@ func writeSummariesPlain(w io.Writer, items []codex.CodexSessionSummary, include
 	for _, item := range items {
 		line := fmt.Sprintf(
 			"%s\t%s\t%s\t%s\t%d\t%s",
-			item.StartedAt.Format(time.RFC3339),
-			item.ID,
-			item.CWD,
-			formatDuration(item.DurationSeconds),
-			item.MessageCount,
-			escapeNewlines(item.Summary),
+			item.GetStartedAt().Format(time.RFC3339),
+			item.GetID(),
+			item.GetCWD(),
+			formatDuration(item.GetDurationSeconds()),
+			item.GetMessageCount(),
+			escapeNewlines(item.GetSummary()),
 		)
 		if _, err := fmt.Fprintln(w, line); err != nil {
 			return err
@@ -54,16 +54,38 @@ func writeSummariesPlain(w io.Writer, items []codex.CodexSessionSummary, include
 	return nil
 }
 
-func writeSummariesJSON(w io.Writer, items []codex.CodexSessionSummary) error {
+func writeSummariesJSON(w io.Writer, items []model.SessionSummaryProvider) error {
+	// Convert to a serializable format
+	output := make([]map[string]interface{}, len(items))
+	for i, item := range items {
+		output[i] = map[string]interface{}{
+			"id":              item.GetID(),
+			"path":            item.GetPath(),
+			"cwd":             item.GetCWD(),
+			"started_at":      item.GetStartedAt(),
+			"summary":         item.GetSummary(),
+			"message_count":   item.GetMessageCount(),
+			"duration_seconds": item.GetDurationSeconds(),
+		}
+	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(items)
+	return enc.Encode(output)
 }
 
-func writeSummariesJSONL(w io.Writer, items []codex.CodexSessionSummary) error {
+func writeSummariesJSONL(w io.Writer, items []model.SessionSummaryProvider) error {
 	enc := json.NewEncoder(w)
 	for _, item := range items {
-		if err := enc.Encode(item); err != nil {
+		output := map[string]interface{}{
+			"id":               item.GetID(),
+			"path":             item.GetPath(),
+			"cwd":              item.GetCWD(),
+			"started_at":       item.GetStartedAt(),
+			"summary":          item.GetSummary(),
+			"message_count":    item.GetMessageCount(),
+			"duration_seconds": item.GetDurationSeconds(),
+		}
+		if err := enc.Encode(output); err != nil {
 			return err
 		}
 	}
@@ -74,7 +96,7 @@ func escapeNewlines(text string) string {
 	return strings.ReplaceAll(text, "\n", "\\n")
 }
 
-func writeSummariesTable(w io.Writer, items []codex.CodexSessionSummary, includeHeader bool) error {
+func writeSummariesTable(w io.Writer, items []model.SessionSummaryProvider, includeHeader bool) error {
 	tw := table.NewWriter()
 	tw.SetOutputMirror(w)
 	tw.SetStyle(table.StyleRounded)
@@ -97,12 +119,12 @@ func writeSummariesTable(w io.Writer, items []codex.CodexSessionSummary, include
 
 	for _, item := range items {
 		tw.AppendRow(table.Row{
-			item.StartedAt.Format(time.RFC3339),
-			item.ID,
-			item.CWD,
-			formatDuration(item.DurationSeconds),
-			item.MessageCount,
-			escapeNewlines(item.Summary),
+			item.GetStartedAt().Format(time.RFC3339),
+			item.GetID(),
+			item.GetCWD(),
+			formatDuration(item.GetDurationSeconds()),
+			item.GetMessageCount(),
+			escapeNewlines(item.GetSummary()),
 		})
 	}
 

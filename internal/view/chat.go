@@ -2,8 +2,8 @@
 package view
 
 import (
-	"agentlog/internal/codex"
 	"agentlog/internal/format"
+	"agentlog/internal/model"
 	"fmt"
 	"regexp"
 	"strings"
@@ -14,7 +14,7 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-func renderChatTranscript(events []codex.CodexEvent, width int, useColor bool) []string {
+func renderChatTranscript(events []model.EventProvider, width int, useColor bool) []string {
 	if width <= 0 {
 		width = 80
 	}
@@ -30,7 +30,7 @@ func renderChatTranscript(events []codex.CodexEvent, width int, useColor bool) [
 	return lines
 }
 
-func renderChatBubble(event codex.CodexEvent, totalWidth int, padding int, useColor bool) []string {
+func renderChatBubble(event model.EventProvider, totalWidth int, padding int, useColor bool) []string {
 	displayRole := strings.ToLower(roleLabel(event))
 	bodyLines := format.RenderEventLines(event, 0)
 
@@ -46,7 +46,7 @@ func renderChatBubble(event codex.CodexEvent, totalWidth int, padding int, useCo
 		}
 	}
 
-	headerText, headerLabel, headerTime := chatHeader(displayRole, event.Timestamp)
+	headerText, headerLabel, headerTime := chatHeader(displayRole, event.GetTimestamp())
 	content := wrapLines(append([]string{headerText}, bodyLines...), maxContentWidth)
 	maxLineWidth := contentMaxWidth(content)
 
@@ -108,61 +108,24 @@ func chatHeader(role string, ts time.Time) (header string, label string, timeTex
 	return fmt.Sprintf("%s · %s", label, timeText), label, timeText
 }
 
-func roleLabel(event codex.CodexEvent) string {
-	if event.Role != "" {
-		role := string(event.Role)
-		// For response_item, show the specific type
-		if event.PayloadType != "" {
-			return role + ": " + event.PayloadType
-		}
-		return role
-	}
-	if event.Kind != "" {
-		kind := string(event.Kind)
-		// For event_msg, turn_context, and response_item, show the specific type
-		if (kind == "event_msg" || kind == "turn_context" || kind == "response_item") && event.PayloadType != "" {
-			return kind + ": " + event.PayloadType
-		}
-		return kind
-	}
-	if event.PayloadType != "" {
-		return event.PayloadType
-	}
-	return "event"
+func roleLabel(event model.EventProvider) string {
+	// Use the normalized role from the interface
+	return event.GetRole()
 }
 
-// extractRawRole returns the base role/kind for alignment and color purposes,
-// without the payload type suffix.
-func extractRawRole(event codex.CodexEvent) string {
-	if event.Role != "" {
-		return string(event.Role)
-	}
-	if event.Kind != "" {
-		return string(event.Kind)
-	}
-	if event.PayloadType != "" {
-		return event.PayloadType
-	}
-	return "event"
+// extractRawRole returns the base role for alignment and color purposes.
+func extractRawRole(event model.EventProvider) string {
+	return event.GetRole()
 }
 
 func alignmentForRole(role string) string {
-	// Check for system/metadata entries first (by string comparison)
+	role = strings.ToLower(role)
 	switch role {
-	case "session_meta", "event_msg", "turn_context":
+	case "assistant", "system", "tool":
 		return "left"
-	}
-
-	// Then check for role-based alignment
-	switch codex.PayloadRole(role) {
-	case codex.PayloadRoleAssistant:
-		return "left"
-	case codex.PayloadRoleTool, codex.PayloadRoleSystem:
-		return "center"
-	case codex.PayloadRoleUser:
+	case "user":
 		return "right"
 	default:
-		// Unknown types default to left
 		return "left"
 	}
 }

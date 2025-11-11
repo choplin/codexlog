@@ -1,7 +1,6 @@
 package format
 
 import (
-	"agentlog/internal/codex"
 	"agentlog/internal/model"
 	"bytes"
 	"encoding/json"
@@ -11,41 +10,27 @@ import (
 )
 
 // RenderEventLines returns the formatted body lines for a session event.
-func RenderEventLines(event codex.CodexEvent, wrapWidth int) []string {
-	switch event.Kind {
-	case codex.EntryTypeSessionMeta:
-		return []string{fmt.Sprintf("Session %s (%s)", contentValue(event.Content, "id"), event.Timestamp.Format(time.RFC3339))}
-	default:
-		body := renderBlocks(event.Content, wrapWidth)
-		if body == "" {
-			return nil
-		}
-		return strings.Split(body, "\n")
+func RenderEventLines(event model.EventProvider, wrapWidth int) []string {
+	body := renderBlocks(event.GetContent(), wrapWidth)
+	if body == "" {
+		return nil
 	}
+	return strings.Split(body, "\n")
 }
 
 // RenderEvent converts a session event into a printable string (legacy helper).
-func RenderEvent(event codex.CodexEvent, wrapWidth int) string {
+func RenderEvent(event model.EventProvider, wrapWidth int) string {
 	lines := RenderEventLines(event, wrapWidth)
-	switch event.Kind {
-	case codex.EntryTypeSessionMeta:
-		return strings.Join(lines, "\n")
-	case codex.EntryTypeResponseItem:
-		label := string(event.Role)
-		if label == "" {
-			label = event.PayloadType
-		}
-		return fmt.Sprintf("[%s][%s]\n%s", event.Timestamp.Format(time.RFC3339), label, strings.Join(lines, "\n"))
-	default:
-		label := string(event.Kind)
-		if label == "" {
-			label = event.PayloadType
-		}
-		if label == "" {
-			label = "event"
-		}
-		return fmt.Sprintf("[%s][%s]\n%s", event.Timestamp.Format(time.RFC3339), label, strings.Join(lines, "\n"))
+	label := event.GetRole()
+	if label == "" {
+		label = "event"
 	}
+
+	ts := "-"
+	if !event.GetTimestamp().IsZero() {
+		ts = event.GetTimestamp().Format(time.RFC3339)
+	}
+	return fmt.Sprintf("[%s][%s]\n%s", ts, label, strings.Join(lines, "\n"))
 }
 
 // renderBlocks joins content blocks into a printable string with optional wrapping.

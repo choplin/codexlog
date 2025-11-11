@@ -9,7 +9,7 @@ import (
 )
 
 func TestRenderEventLines_Text(t *testing.T) {
-	event := codex.CodexEvent{
+	event := &codex.CodexEvent{
 		Kind: codex.EntryTypeResponseItem,
 		Role: codex.PayloadRoleAssistant,
 		Content: []model.ContentBlock{
@@ -27,7 +27,7 @@ func TestRenderEventLines_Text(t *testing.T) {
 }
 
 func TestRenderEventLines_JSON(t *testing.T) {
-	event := codex.CodexEvent{
+	event := &codex.CodexEvent{
 		Kind:      codex.EntryType("event_msg"),
 		Timestamp: time.Date(2025, 10, 25, 12, 0, 0, 0, time.UTC),
 		Content: []model.ContentBlock{

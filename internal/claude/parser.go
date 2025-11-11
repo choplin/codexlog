@@ -11,8 +11,41 @@ import (
 	"time"
 )
 
+// ClaudeParser implements the model.Parser interface for Claude Code logs.
+type ClaudeParser struct{}
+
+// Ensure ClaudeParser implements model.Parser
+var _ model.Parser = (*ClaudeParser)(nil)
+
+func init() {
+	model.RegisterClaudeParser(func() model.Parser {
+		return &ClaudeParser{}
+	})
+}
+
 // ErrSessionMetaNotFound is returned when a JSONL file has no valid entries.
 var ErrSessionMetaNotFound = errors.New("no valid entries found in session file")
+
+// ReadSessionMeta loads metadata from the first entry in a Claude Code session file.
+// This is the implementation of model.Parser.ReadSessionMeta.
+func (p *ClaudeParser) ReadSessionMeta(path string) (model.SessionMetaProvider, error) {
+	return ReadSessionMeta(path)
+}
+
+// FirstUserSummary extracts the first user message or summary from the session.
+// This is the implementation of model.Parser.FirstUserSummary.
+func (p *ClaudeParser) FirstUserSummary(path string) (string, error) {
+	summary, _, _, err := FirstUserSummary(path)
+	return summary, err
+}
+
+// IterateEvents iterates through all events in the session.
+// This is the implementation of model.Parser.IterateEvents.
+func (p *ClaudeParser) IterateEvents(path string, fn func(model.EventProvider) error) error {
+	return IterateEvents(path, func(event ClaudeEvent) error {
+		return fn(&event)
+	})
+}
 
 // ReadSessionMeta loads metadata from the first entry in a Claude Code session file.
 func ReadSessionMeta(path string) (*ClaudeSessionMeta, error) {
